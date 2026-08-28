@@ -1,0 +1,373 @@
+/* dashboard.css */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: sans-serif;
+  background: #f7f7f7;
+  margin: 20px 0px 25px 50px;
+  padding: 0;
+  color: #333;
+  min-height: 100vh;
+}
+
+/* Two-column layout */
+
+.dashboard-layout {
+  display: grid;
+  grid-template-columns: 1fr 3fr;
+  /* grid-template-columns: 360px 1fr;  */
+  min-height: 100vh;
+}
+
+/* Left sidebar: 1/3 */
+
+.sidebar {
+  background: #fff;
+  border-right: 1px solid #e8e8e8;
+  padding: 15px 40px 15px 40px;
+  position: sticky;
+  top: 0;
+  height: 95vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  text-align: justify;
+  gap: 0;
+}
+
+.sidebar-section {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  /* border-bottom: 1px solid #f0f0f0; */
+}
+
+.sidebar-section:last-of-type {
+  border-bottom: none;
+}
+
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+.sidebar-tag {
+  font-size: 11px;
+  color: #bbb;
+  margin: 0;
+}
+
+.sidebar-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  margin: 0 0 10px;
+}
+
+.sidebar-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #555;
+  margin: 0;
+  padding: 15px 10px;
+  text-align: left;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 10px;
+  color: #ccc;
+  line-height: 1.6;
+}
+
+.sidebar-footer p {
+  margin: 0;
+}
+
+/* Sidebar title block: always visible above accordion */
+
+.sidebar-title-block {
+  padding-bottom: 20px;
+  text-align: left;
+  border-radius: 10px;
+  background-color: #451e77;
+  color: white;
+  padding: 15px 15px;
+}
+
+.sidebar-title {
+  font-size: 18px;
+  color: white;
+  margin-bottom: 10px;
+  /* text-transform: uppercase; */
+  line-height: 1.25em;
+}
+
+.sidebar-tag {
+  color: white;
+}
+
+/* Accordion card group */
+
+.accordion-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* Header button: full width, no browser button styling */
+.accordion-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 15px;
+
+  /* border: none; */
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  text-align: left;
+
+  margin-top: 10px;
+  /* margin-bottom: 10px; */
+
+  background-color: white;
+  /* color: #555; */
+  border: 1px solid #451e77;
+  border-radius: 5px;
+}
+
+.accordion-header:hover {
+  color: #999;
+}
+
+.accordion-header[aria-expanded="true"] {
+  /* color: #451e77; */
+  background-color: #e8d9fb;
+  color: black;
+}
+
+/* Indicator arrow: rotates when card is open */
+.accordion-indicator {
+  font-size: 14px;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.accordion-header[aria-expanded="true"] .accordion-indicator {
+  transform: rotate(180deg);
+}
+
+/* Body: hidden by default, revealed by max-height transition.
+   ACCORDION_HEIGHT controls the fixed content height across all cards.
+   All cards share this value so the sidebar height stays constant
+   when switching between cards.
+   Increase if the longest text section clips. */
+.accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, padding 0.25s ease;
+  padding: 0px 10px;
+}
+
+.accordion-body.is-open {
+  max-height: 260px;
+  /* padding-bottom: 16px; */
+}
+
+/* Chart containers */
+
+#trend-container,
+#heatmap-container {
+  width: 100%;
+}
+
+/* Global metric controls */
+
+.global-controls {
+  padding: 25px 15px;
+  padding-top: 15px;
+  margin-bottom: 10px;
+  margin-top: 20px;
+  border: 1px solid #000000;
+  /* border-top: 1px solid #000000; */
+  border-radius: 10px;
+}
+
+.global-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.global-metric-select {
+  width: 100%;
+  font-size: 12px;
+  padding: 6px 0px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  /* background: #451e77;
+  color: white; */
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+.global-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.global-stat-row {
+  display: flex;
+  /* flex-direction: column; */
+  justify-content: space-between;
+  align-items: baseline;
+  /* align-items: flex-end; */
+  gap: 8px;
+}
+
+.global-stat-label {
+  font-size: 10px;
+  color: #bbb;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.global-stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  align-self: flex-end;
+}
+
+/* Right panel: 2/3 */
+
+.chart-panel {
+  background: #f7f7f7;
+  padding: 0px 20px 10px 30px;
+  /* margin-right: -20px; */
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+.chart-section {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  padding: 24px 24px 32px;
+  /* margin-bottom: 32px; */
+}
+
+/* Chart header: label + info icon */
+
+.chart-header {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  /* margin-bottom: 16px; */
+}
+
+.chart-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #aaa;
+}
+
+/* Info icon and instruction tooltip */
+
+.info-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.info-icon-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #eee;
+  color: #aaa;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: default;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.info-icon:hover .info-icon-symbol {
+  background: #555;
+  color: #fff;
+}
+
+.chart-tooltip-box {
+  display: none;
+  position: absolute;
+  top: 24px;
+  left: -320px;
+  z-index: 100;
+  width: 320px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+
+.info-icon:hover .chart-tooltip-box {
+  display: block;
+}
+
+.chart-tooltip-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  margin: 0 0 10px;
+}
+
+.chart-tooltip-box p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #555;
+  margin: 0 0 10px;
+}
+
+.chart-tooltip-box p:last-child {
+  margin-bottom: 0;
+}
+
+#trend-container select:first-of-type,
+#heatmap-container select:first-of-type {
+  display: none;
+}
+
+/* Loading message */
+
+#load-message {
+  font-size: 13px;
+  color: #aaa;
+  padding: 40px 0 20px;
+}
