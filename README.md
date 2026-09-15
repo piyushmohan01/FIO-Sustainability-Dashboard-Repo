@@ -1,30 +1,32 @@
-# FIO Food Dashboard
+# FIO Food Dashboard (FIO-EISE)
 
-An interactive web dashboard for exploring the seasonal environmental
-impact of food and drink purchasing in the UK. Built with D3.js and
-served locally via Python's built-in HTTP server (Prototype Phase)
+An interactive web dashboard for exploring the seasonal environmental impact of food and drink purchasing in the UK. Built with D3.js and deployed as a static site (GitHub Pages) for the current prototype.
 
-Developed by the [Healthy and Sustainable Places (HASP) Data Service](https://hasp.ac.uk)
-as part of the FIO Food project at the University of Leeds.
+Developed by the [Healthy and Sustainable Places (HASP) Data Service](https://hasp.ac.uk) as part of the FIO Food project at the University of Leeds.
 
 ---
 
 ## Overview
 
-The FIO Food Dashboard lets researchers explore how the environmental footprint of food purchasing changes across a calendar year, broken down by environmental metric and food category. It is built on anonymised daily loyalty card transaction data from a major UK grocery retailer covering Yorkshire and Humber in 2022.
+The FIO Food Environmental Impact Seasonal Explorer (FIO-EISE) lets
+researchers explore how the environmental footprint of food purchasing
+changes across a calendar year, broken down by environmental metric
+and food category. It is built on anonymised weekly transaction data
+from a major UK grocery retailer covering Yorkshire and Humber in 2022.
+
+The dashboard has two coordinated charts in a two-tab layout:
 
 | Chart | Description |
 |---|---|
-| **Timeline** | Smoothed daily trend for one environmental metric across the selected date range. Entry point for identifying periods of elevated footprint. |
-| **Heatmap** | LCFS food categories × daily or weekly columns. Cell colour shows each category's footprint relative to its own annual typical level. |
+| **Timeline** | Smoothed weekly trend for one environmental metric. Entry point for identifying periods of elevated or reduced footprint. |
+| **Heatmap** | 65 LCFS food categories x 52 weekly bins. Cell colour shows each category's footprint relative to its own annual typical level. |
 
-Both charts share a global metric selector, date range pickers, and a Total SF / Per kg toggle. Changing any of these controls updates both charts simultaneously.
+Each chart has its own independent metric selector, Total SF / Per kg
+toggle, event overlay dropdown, and date pickers.
 
-```
-> Prototype status: All patterns shown use dummy data generated
+> **Prototype status:** All patterns shown use dummy data generated
 > outside the Trusted Research Environment (TRE). Real 2022 retailer
 > data will be connected following VRE validation and approval.
-```
 
 ---
 
@@ -32,25 +34,24 @@ Both charts share a global metric selector, date range pickers, and a Total SF /
 
 ```
 fio_dashboard/
-├── index.html                  # Dashboard shell: layout, script loading
-├── serve.py                    # Local HTTP server (one command to run)
+├── index.html                      # Two-tab shell: About + FIO-EISE
+├── serve.py                        # Local HTTP server (one command)
 │
 ├── css/
-│   └── dashboard.css           # Layout grid, sidebar, accordion, chart cards
+│   └── dashboard_V2_copy.css       # Layout, sidebar, glossary, chart cards
 │
 ├── js/
-│   ├── trend_chart.js          # createTrendChart(): D3 timeline chart function
-│   ├── heatmap.js              # createHeatmap(): D3 heatmap chart function
-│   └── dashboard.js            # Data loading, chart init, global controls wiring
+│   ├── trend_chart_V2_copy.js      # createTrendChart(): D3 timeline chart
+│   ├── heatmap_V2_copy.js          # createHeatmap(): D3 heatmap chart
+│   └── dashboard_V2_copy.js        # Data loading, chart init, tab logic
 │
 ├── data/
-│   ├── L1_rolling.json         # Daily smoothed trend values (365 rows)
-│   ├── L2a_daily.json          # Daily smoothed category-level values (23,725 rows)
-│   └── L2a_weekly.json         # Weekly aggregated category-level values (3,380 rows)
+│   ├── L1_rolling_updated.json     # Weekly bin trend values (52 rows)
+│   └── L2a_weekly_updated.json     # Weekly category-level values (3,380 rows)
 │
 ├── notebooks/
-│   ├── book_01.ipynb # Generates L1_rolling.json from dummy data (Timeline)
-│   └── book_02.ipynb # Generates L2a_daily.json and L2a_weekly.json (Heatmap)
+│   ├── notebook_01_L1_dummy.py     # Generates L1_rolling_updated.json
+│   └── notebook_02_L2a_dummy.py    # Generates L2a_weekly_updated.json
 │
 └── README.md
 ```
@@ -61,8 +62,9 @@ fio_dashboard/
 
 ### Prerequisites
 
-- Python 3.8 or later (no additional packages required: uses built-in `http.server`)
-- A modern browser (Chrome, Firefox, or Safari) and Internet connection on first load (D3.js loaded from CDN)
+- Python 3.8 or later (no additional packages: uses built-in `http.server`)
+- A modern browser (Chrome, Firefox, or Safari)
+- Internet connection on first load (D3.js v7 loaded from CDN)
 
 ### Running locally
 
@@ -72,219 +74,265 @@ cd fio_dashboard
 python serve.py
 ```
 
-The dashboard opens automatically at `http://localhost:8000`.
+The dashboard opens automatically at `http://localhost:8000` on the
+About page. Click the FIO-EISE tab to load the charts.
 
 > `serve.py` must be run from the `fio_dashboard/` root directory.
-> Opening `index.html` directly in a browser will not work: the browser
-> blocks `fetch()` calls to local files due to same-origin policy.
+> Opening `index.html` directly in a browser blocks `fetch()` calls
+> to local files due to the browser same-origin policy.
+
+### Live link (GitHub Pages)
+
+The dashboard is also deployed at:
+```
+https://piyushmohan01.github.io/FIO-Sustainability-Dashboard-Repo/
+```
+
+No server required. Data files are fetched directly from the repo.
 
 ### Regenerating data
 
-If you need to rebuild the JSON data files from scratch:
-
 ```bash
-python notebooks/book_01.ipynb
-python notebooks/book_02.ipynb
+python notebooks/notebook_01_L1_dummy.py
+python notebooks/notebook_02_L2a_dummy.py
 ```
 
-Both scripts write their output files directly to `data/`. Refresh the browser after regeneration.
+Both scripts for regenerating dummy data can be found in the `notebooks/` filder. Thse write output files to `data/`. Refresh the browser after regeneration.
 
 ---
 
 ## Environmental Metrics
 
-All three metrics are derived from per-product environmental intensity estimates sourced from Poore and Nemecek (2018), scaled by the total weight of products sold each day.
+All three metrics are derived from per-product environmental impact estimates sourced from Poore and Nemecek (2018), scaled by the total weight of products sold each week.
 
 | Metric | Description | Unit (Total SF) | Unit (Per kg) |
 |---|---|---|---|
-| GHGE | Greenhouse Gas Emissions | kg CO₂-eq / day | kg CO₂-eq / kg |
-| LU | Land Use | m²·yr / day | m²·yr / kg |
-| WU | Water Use | L / day | L / kg |
-| Composite | Normalised average of all three | 0-1 scale | 0-1 intensity scale |
+| **GHGE** | Greenhouse Gas Emissions | kg CO₂-eq / day | kg CO₂-eq / kg |
+| **LU** | Land Use | m²·yr / day | m²·yr / kg |
+| **WU** | Water Use | L / day | L / kg |
+| **Composite Impact** | Normalised average of all three | 0–1 scale | 0–1 intensity scale |
 
 ### Total SF vs Per kg
 
-**Total SF** (Sales Footprint) combines purchasing volume and basket composition. It reflects both what was bought and how much of it was sold.
+**Total SF** Total environmental impact per day from food and drink sales. Calculated by multiplying the per-product environmental impact value by the weight sold, summed across all products.
 
-**Per kg** strips out volume. It shows the average environmental intensity per kilogram sold: a measure of basket composition independent of quantity. If Total SF is elevated but Per kg is not, the period was driven by volume. If both are elevated, composition also shifted toward higher-impact products.
+**Per kg** Average environmental impact per kilogram of food purchased. Shows basket composition independently of purchasing volume. Changes when the relative mix of products shifts toward higher or lower impact items.
 
 ---
 
 ## Data Files
 
-### L1_rolling.json
+### L1_rolling_updated.json
 
-Daily smoothed values for the full year at basket level. One row per calendar day, 365 rows total.
-
-| Column | Description |
-|---|---|
-| `date` | Calendar date string (YYYY-MM-DD) |
-| `roll7_GHGE_SF` | 7-day rolling mean total GHGE sales footprint |
-| `roll7_LU_SF` | 7-day rolling mean total Land Use sales footprint |
-| `roll7_WU_SF` | 7-day rolling mean total Water Use sales footprint |
-| `roll7_composite_norm` | 7-day rolling mean normalised composite (0–1) |
-| `roll7_GHGE_perkg` | 7-day rolling mean GHGE per kg sold |
-| `roll7_LU_perkg` | 7-day rolling mean Land Use per kg sold |
-| `roll7_WU_perkg` | 7-day rolling mean Water Use per kg sold |
-| `roll7_composite_intensity_norm` | 7-day rolling mean composite intensity (0–1) |
-
-Boundary rows (Jan 1–3 and Dec 29–31) contain `null` for all rolling columns because of incomplete 7-day window. The timeline chart skips null rows when building the plotted series.
-
-### L2a_daily.json
-
-Daily smoothed values disaggregated to 65 LCFS food categories. One row per date per category, 23,725 rows total (365 × 65).
-
-Key columns alongside `date` and `lcfs_cat`:
-
-| Column pattern | Description |
-|---|---|
-| `roll7_{M}_SF` | 7-day rolling mean total SF per category (M = GHGE, LU, WU) |
-| `roll7_{M}_perkg` | 7-day rolling mean per-kg intensity per category |
-| `{M}_rank_on_day` | Daily rank of category among all 65 by total SF |
-| `{M}_annual_mean` | Annual mean of smoothed SF for the category |
-| `{M}_annual_share` | Category fraction of grand total annual SF (%) |
-| `{M}_annual_min / max` | Smoothed SF range across the year per category |
-| `{M}_annual_rank` | Rank by annual mean SF (1 = highest) |
-| `{M}_pct_from_annual_mean` | % deviation of smoothed daily SF from annual mean |
-| `{M}_perkg_annual_mean` | Annual mean of smoothed per-kg values |
-| `{M}_perkg_max_abs_dev` | Diverging scale half-width for per-kg colour domain |
-| `{M}_perkg_annual_rank` | Rank by annual mean per-kg (1 = highest) |
-| `{M}_perkg_pct_from_annual_mean` | % deviation of per-kg value from per-kg annual mean |
-
-### L2a_weekly.json
-
-Weekly aggregated values for 65 categories. One row per 7-day bin per category, 3,380 rows total (52 weeks × 65).
-
-Week bins are Jan-01 anchored: not ISO Monday anchored.
-Week 1 covers Jan-01 to Jan-07, Week 2 covers Jan-08 to Jan-14, and so on. The `week_start` field holds the first date of each bin.
-
-Additional columns beyond the daily set:
+Weekly bin values for the full year at basket level. 52 rows: one per
+Jan-01 anchored 7-day bin.
 
 | Column | Description |
 |---|---|
 | `week_start` | First date of the 7-day bin (YYYY-MM-DD) |
-| `calendar_month` | 0-based month index of the bin's majority month |
-| `{M}_weekly_mean` | Mean of daily smoothed SF values within the bin |
-| `{M}_perkg_weekly_mean` | Mean of daily smoothed per-kg values within the bin |
+| `roll7_GHGE_SF` | 7-day bin mean total GHGE sales footprint |
+| `roll7_LU_SF` | 7-day bin mean total Land Use sales footprint |
+| `roll7_WU_SF` | 7-day bin mean total Water Use sales footprint |
+| `roll7_composite_norm` | 7-day bin mean normalised composite (0–1) |
+| `roll7_GHGE_perkg` | 7-day bin mean GHGE per kg sold |
+| `roll7_LU_perkg` | 7-day bin mean Land Use per kg sold |
+| `roll7_WU_perkg` | 7-day bin mean Water Use per kg sold |
+| `roll7_composite_intensity_norm` | 7-day bin mean composite intensity (0–1) |
+
+Bin 1: Jan-01 to Jan-07. Bin 52: Dec-24 to Dec-30. No null boundary rows: every bin has exactly 7 days of data. Christmas Day (Dec-25) is set to zero before binning; the visible dip in bin 52 is expected.
+
+### L2a_weekly_updated.json
+
+Weekly bin values disaggregated to 65 LCFS food categories. 3,380 rows total (52 bins × 65 categories).
+
+Bins are Jan-01 anchored: Week 1 = Jan-01 to Jan-07, Week 2 = Jan-08 to Jan-14. The `week_start` field holds the first date of each bin.
+
+Key columns alongside `week_start` and `lcfs_cat`:
+
+| Column pattern | Description |
+|---|---|
+| `{M}_weekly_mean` | Mean of daily SF values within the bin (M = GHGE, LU, WU) |
+| `{M}_perkg_weekly_mean` | Mean of daily per-kg values within the bin |
 | `{M}_weekly_rank` | Category rank by weekly mean among all 65 |
+| `{M}_annual_mean` | Annual mean of weekly bin means per category |
+| `{M}_annual_share` | Category fraction of grand total annual SF (%) |
+| `{M}_annual_min / max` | Weekly bin mean range across the year per category |
+| `{M}_annual_rank` | Rank by annual mean SF (1 = highest impact) |
+| `{M}_pct_from_annual_mean` | % deviation of weekly mean from annual mean |
+| `{M}_perkg_annual_mean` | Annual mean of per-kg weekly bin means |
+| `{M}_perkg_max_abs_dev` | Diverging scale half-width for per-kg colour domain |
+| `{M}_perkg_annual_rank` | Rank by annual mean per-kg (1 = highest) |
+| `{M}_perkg_pct_from_annual_mean` | % deviation of per-kg value from per-kg annual mean |
+| `calendar_month` | 0-based month index of the bin's first date |
 
 ---
 
 ## Chart Architecture
 
-Both chart functions are standard D3 v7. They have no Observable or framework dependencies and return a plain DOM node via
-`container.node()`.
+Both chart functions are standard D3 v7. They have no Observable or framework dependencies and return a plain DOM node via `container.node()`.
 
 ### createTrendChart(data, { width })
 
-Located in `js/trend_chart.js`. Receives the L1_rolling.json array and a pixel width.
+Located in `js/trend_chart_V2_copy.js`. Receives the
+`L1_rolling_updated.json` array and a pixel width. Reads `week_start`
+and maps it to `d.date` for all internal scale and tooltip logic.
 
 **Internal state variables:**
 
 | Variable | Type | Description |
 |---|---|---|
-| `activeMKey` | string | Active metric key: `"composite"`, `"GHGE"`, `"LU"`, `"WU"` |
-| `activePkg` | boolean | `false` = Total SF view, `true` = Per kg view |
-| `lastGlobalMetric` | string | Last metric pushed by global dropdown: used to restore after composite override |
-
-**Redraw trigger chain:**
-
-```
-User interaction (control change)
- |
-D3 .on("change") or .on("click") handler on the control element
- |
-State variable updated (activeMKey / activePkg / date range)
- |
-redraw() called
- |
-plotData filtered from pre-built smoothed[] or smoothedPkg[] arrays
- |
-xScale and yScale recomputed from plotData extent
- |
-Axes, gridlines, event markers, trend line re-rendered
- |
-Tooltip and hover line re-attached to overlay rect
-```
-
-### createHeatmap(dailyData, weeklyData, { width, onStats })
-
-Located in `js/heatmap.js`. Receives both L2a JSON arrays, a pixel width, and an optional `onStats` callback.
-
-**Internal state variables:**
-
-| Variable | Type | Description |
-|---|---|---|
-| `activeMetric` | string | Active metric key: `"GHGE"`, `"LU"`, `"WU"` |
+| `activeMKey` | string | Active metric: `"GHGE"`, `"LU"`, `"WU"`, `"composite"` |
 | `activePkg` | boolean | `false` = Total SF, `true` = Per kg |
-| `activeView` | string | `"weekly"` or `"daily"` |
-| `activeN` | number | Number of category rows displayed (10, 30, or 65) |
+| `activeEventGroup` | string | Active event overlay group key |
+| `xScale` | d3.scaleTime | Hoisted to outer scope for `redrawEventMarkers()` |
+
+**Control layout:**
+
+```
+topRow:   metric dropdown | per-kg pill | [legend swatch + annual means]
+ctrlRow:  event overlay dropdown | From | To | Reset dates
+```
 
 **Redraw trigger chain:**
 
 ```
-User interaction (control change)
- |
-D3 .on("change") or .on("click") handler
- |
-State variable updated
- |
+User interaction
+  |
+D3 handler updates activeMKey / activePkg / date range
+  |
 redraw() called
- |
-Active column names resolved from activeMetric + activePkg
- |
+  |
+plotData filtered from pre-built smoothed[] or smoothedPkg[] arrays
+  |
+xScale (hoisted) and yScale recomputed
+  |
+Axes, gridlines, redrawEventMarkers(), trend line, tooltip redrawn
+```
+
+Composite Impact: y-axis always fixed to [0, 1] regardless of data
+range, with explicit tick values [0, 0.2, 0.4, 0.6, 0.8, 1.0].
+
+### createHeatmap(weeklyData, { width, onStats })
+
+Located in `js/heatmap_V2_copy.js`. Receives the
+`L2a_weekly_updated.json` array only (no daily file). The `onStats`
+callback is optional.
+
+**Internal state variables:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `activeMetric` | string | Active metric: `"GHGE"`, `"LU"`, `"WU"` |
+| `activePkg` | boolean | `false` = Total SF, `true` = Per kg |
+| `activeN` | number | Category rows displayed: 10, 30, or 65 |
+| `activeEventGroup` | string | Active event overlay group key |
+
+**Control layout:**
+
+```
+topRow:   metric dropdown | per-kg pill | Show N dropdown | [legend swatch + annual means]
+ctrlRow:  event overlay dropdown | From | To | Reset dates
+```
+
+**Redraw trigger chain:**
+
+```
+User interaction
+  |
+D3 handler updates activeMetric / activePkg / activeN / date range
+  |
+redraw() called
+  |
+Column names resolved from activeMetric + activePkg
+  |
 sortedCats ordered by pre-computed annual rank (no d3.rollup)
- |
-displayDates and displayValues built from dailyMap or weeklyMap
- |
+  |
+weekKeys filtered, displayDates and displayValues built from weeklyMap
+  |
 chart_H computed from activeN (MIN_CHART_H to MAX_CHART_H range)
- |
-rowScales built (sequential for Total SF, diverging for Per kg)
- |
-Cells, labels, rank axis, event markers, legend re-rendered
- |
+  |
+rowScales built per category:
+  Total SF: d3.scaleSequential (per-row extent)
+  Per kg:   d3.scaleDiverging centred on annual mean
+  |
+Cells, labels, rank axis, event markers, legend, footnote redrawn
+  |
 onStats(periodSFTotal, periodPkgAvg, cfg) fired if provided
 ```
 
 **onStats callback:**
 
 ```javascript
-createHeatmap(dailyData, weeklyData, {
+createHeatmap(weeklyData, {
   width,
   onStats: (periodSFTotal, periodPkgAvg, cfg) => {
-    // cfg.unit and cfg.pkg_unit carry the active metric units
-    // Called after every redraw: use to display reference values
-    // outside the chart SVG (sidebar)
+    // cfg.unit and cfg.pkg_unit carry the active metric units.
+    // Called after every redraw.
   }
 });
 ```
 
-### Global controls wiring (dashboard.js)
+**Colour schemes:**
 
-The global metric dropdown (`#global-metric-select`) drives both charts by setting the value on each chart's hidden internal metric select element and dispatching a synthetic `change` event. This fires each chart's existing D3 handler without modifying the chart functions.
+| Metric | Total SF interpolator | Per kg interpolator |
+|---|---|---|
+| GHGE | `d3.interpolateYlGn` | Custom: pink to white to green |
+| LU | `d3.interpolateYlOrBr` | Custom: blue to white to orange |
+| WU | `d3.interpolateYlGnBu` | Custom: pink to white to blue |
 
-```
-#global-metric-select change
-        |
-pushMetric(internalSelect, value)
-        |
-internalSelect.value = value
-dispatchEvent(new Event("change"))
-        |
-D3 handler fires → state update → redraw()
-```
+Per-kg diverging domain per category:
+`[annual_mean - max_abs_dev, annual_mean, annual_mean + max_abs_dev]`
+where `max_abs_dev` is pre-computed in Python and stored in
+`{M}_perkg_max_abs_dev`.
+
+---
+
+## Dashboard Layout
+
+The dashboard uses a fixed nav + fixed sidebar + scrollable right panel layout.
+
+**Tab behaviour:**
+- About tab: sidebar shows funding/logo placeholder; right panel shows
+  project text
+- FIO-EISE tab: sidebar shows glossary accordion; right panel shows
+  both charts
+- Charts initialise lazily on first activation of the FIO-EISE tab
+  so container width is readable before init
+
+**Glossary accordion:** one card open at a time, fixed body height per card (90px max) so total sidebar height stays constant across card switches.
+
+**Responsive:** below 768px the layout stacks to a single column with sidebar as a horizontal strip above the chart panel.
 
 ---
 
 ## LCFS Food Categories
 
-The dashboard uses 65 food categories following the ONS Living Costs and Food Survey (LCFS) classification. The full category list is available in `notebooks/book_02.ipynb` under the `LCFS_CATS` constant.
+The dashboard uses 65 food categories following the ONS Living Costs and Food Survey (LCFS) classification. The full category list is available in `notebooks/book-02.py` under the `LCFS_CATS` constant.
 
 ---
 
+## Event Overlays
 
-## Further Reading
+Both charts include an event overlay dropdown with five groups:
 
-For full technical detail on metrics, controls, chart behaviour, and data pipeline decisions see the **Technical Document** (to be included in this repository).
+| Group | Contents |
+|---|---|
+| Public Holidays | UK bank holidays for the data year |
+| Cultural Events | Christmas, Easter, Mother's Day, Halloween, Diwali, Ramadan, Father's Day |
+| School Calendar | England term start and end dates (SH-1 through SH-6) |
+| Weather Events | Heatwave peak dates with duration in days |
+| Sporting Events | Six Nations, UEFA Women's Euro, FIFA World Cup (start/end) |
 
-For a non-technical introduction to the dashboard see the **Quick Start Guide** (to be included in this repository).
+Footnote below each chart updates with abbreviation key for the active group (BH, SH, HW, CG, SN, WC, WE).
+
+---
+
+## Citation & Funding
+
+```
+FIO-EISE Dashboard (2026). HASP Data Service, University of Leeds.
+UKRI/BBSRC BB/W018021/1.
+```
+
+The research leading to these results has received funding through the Transforming the UK Food System (TUKFS) for Healthy People and a Healthy Environment SPF Programme, delivered by UKRI, in partnership with the Global Food Security Programme, BBSRC, ESRC, MRC, NERC, Defra, DHSC, OHID, Innovate UK and FSA (FIO-Food award: BB/W018021/1). 
+
