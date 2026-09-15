@@ -1,0 +1,842 @@
+/* dashboard.css */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: sans-serif;
+  background: #f7f7f7;
+  margin: 0;
+  padding: 0;
+  color: #333;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 
+body {
+  font-family: sans-serif;
+  background: #f7f7f7;
+  margin: 20px 0px 25px 50px;
+  padding: 0;
+  color: #333;
+  min-height: 100vh;
+} */
+
+/* Two-column layout */
+
+/* .dashboard-layout {
+  display: grid;
+  grid-template-columns: 1fr 4fr;
+  min-height: 98vh;
+} */
+
+/* ---- Full page layout: fills viewport below nav ---- */
+
+.page-layout {
+  position: fixed;
+  top: 48px;       /* matches .tab-nav height */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  overflow: hidden;
+}
+
+/* Right panel scrolls independently -- goes behind fixed nav when scrolling */
+.right-panel {
+  overflow-y: auto;
+  overflow-x: auto;
+  height: 100%;
+  background: #f7f7f7;
+  /* background: #fff; */
+}
+
+/* Tab panels fill their content area naturally */
+.tab-panel {
+  display: block;
+}
+
+.tab-panel-hidden {
+  display: none;
+}
+
+/* Chart containers never exceed right-panel width */
+#trend-container,
+#heatmap-container {
+  width: 100%;
+  overflow: auto;
+}
+
+/* Left sidebar: 1/3 */
+
+/* .sidebar {
+  background: #f7f7f7;
+  border-right: 1px solid #e8e8e8;
+  padding: 15px 10px 15px 10px;
+  position: sticky;
+  top: 0;
+  height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  text-align: justify;
+  margin-top: 105px;
+  border-radius: 6px 6px 6px 6px;
+  border: 0.1px solid #451e77;
+  gap: 0;
+} */
+
+.sidebar {
+  background: #f7f7f7;
+  border-right: 1px solid #e8e8e8;
+  padding: 28px 20px 48px;
+  height: 95%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-left: 40px;
+  margin-top: 70px;
+  padding-left: 30px;
+}
+
+.sidebar-section {
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  /* border-bottom: 1px solid #f0f0f0; */
+}
+
+.sidebar-section:last-of-type {
+  border-bottom: none;
+}
+
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+/* .sidebar-tag {
+  font-size: 11px;
+  color: #bbb;
+  margin: 0;
+} */
+
+.sidebar-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  margin: 0 0 10px;
+}
+
+.sidebar-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #555;
+  margin: 0;
+  padding: 15px 10px;
+  text-align: left;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  font-size: 10px;
+  color: #ccc;
+  line-height: 1.6;
+}
+
+.sidebar-footer p {
+  margin: 0;
+}
+
+/* Sidebar title block: always visible above accordion */
+
+/* .sidebar-title-block {
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+  text-align: left;
+  border-radius: 10px;
+  background-color: #451e77;
+  color: white;
+  padding: 15px 15px;
+} */
+
+/* .sidebar-title {
+  font-size: 18px;
+  color: white;
+  margin-bottom: 10px;
+  line-height: 1.25em;
+} */
+
+/* .sidebar-tag {
+  color: white;
+} */
+
+/* Accordion card group */
+
+.accordion-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+/* Header button: full width, no browser button styling */
+.accordion-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 15px;
+
+  /* border: none; */
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  text-align: left;
+
+  margin-top: 10px;
+  /* margin-bottom: 10px; */
+
+  background-color: white;
+  /* color: #555; */
+  border: 1px solid #451e77;
+  border-radius: 5px;
+}
+
+.accordion-header:hover {
+  color: #999;
+}
+
+.accordion-header[aria-expanded="true"] {
+  /* color: #451e77; */
+  background-color: #e8d9fb;
+  color: black;
+}
+
+/* Indicator arrow: rotates when card is open */
+.accordion-indicator {
+  font-size: 14px;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+.accordion-header[aria-expanded="true"] .accordion-indicator {
+  transform: rotate(180deg);
+}
+
+/* Body: hidden by default, revealed by max-height transition.
+   ACCORDION_HEIGHT controls the fixed content height across all cards.
+   All cards share this value so the sidebar height stays constant
+   when switching between cards.
+   Increase if the longest text section clips. */
+.accordion-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease, padding 0.25s ease;
+  padding: 0px 10px;
+}
+
+.accordion-body.is-open {
+  max-height: 260px;
+  /* padding-bottom: 16px; */
+}
+
+/* Chart containers */
+
+#trend-container,
+#heatmap-container {
+  width: 98%;
+  overflow-x: auto;
+  /* margin-right: 10px; */
+}
+
+/* Global metric controls */
+
+.global-controls {
+  padding: 25px 15px;
+  padding-top: 15px;
+  margin-bottom: 10px;
+  margin-top: 20px;
+  border: 1px solid #000000;
+  /* border-top: 1px solid #000000; */
+  border-radius: 10px;
+}
+
+.global-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  margin-bottom: 8px;
+}
+
+.global-metric-select {
+  width: 100%;
+  font-size: 12px;
+  padding: 6px 0px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  /* background: #451e77;
+  color: white; */
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+.global-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.global-stat-row {
+  display: flex;
+  /* flex-direction: column; */
+  justify-content: space-between;
+  align-items: baseline;
+  /* align-items: flex-end; */
+  gap: 8px;
+}
+
+.global-stat-label {
+  font-size: 10px;
+  color: #bbb;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.global-stat-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  align-self: flex-end;
+}
+
+/* Right panel: 2/3 */
+
+.chart-panel {
+  background: #f7f7f7;
+  padding: 65px 10px 10px 10px;
+  margin-left: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 25px;
+  align-items: flex-start;
+}
+
+.chart-section {
+  background: #fff;
+  border: 0.1px solid #451e77;
+  border-radius: 6px;
+  padding: 24px 32px 32px;
+  /* padding-top: 35px; */
+  border-bottom: 0px;
+  /* margin-bottom: -10px; */
+}
+
+/* Chart header: label + info icon */
+
+.chart-header {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  /* margin-bottom: 16px; */
+}
+
+.chart-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #aaa;
+  display: none;
+}
+
+/* Info icon and instruction tooltip */
+
+.info-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.info-icon-symbol {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #eee;
+  color: #aaa;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: default;
+  user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+
+.info-icon:hover .info-icon-symbol {
+  background: #555;
+  color: #fff;
+}
+
+.chart-tooltip-box {
+  display: none;
+  position: absolute;
+  top: 24px;
+  left: -320px;
+  z-index: 100;
+  width: 320px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+
+.info-icon:hover .chart-tooltip-box {
+  display: block;
+}
+
+.chart-tooltip-heading {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  margin: 0 0 10px;
+}
+
+.chart-tooltip-box p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #555;
+  margin: 0 0 10px;
+}
+
+.chart-tooltip-box p:last-child {
+  margin-bottom: 0;
+}
+
+/* 
+#trend-container select:first-of-type,
+#heatmap-container select:first-of-type {
+  display: none;
+} */
+
+/* ---- Tab navigation ---- */
+
+.tab-nav {
+  position: fixed;
+  top: 0;
+  z-index: 100;
+  width: 95%;
+  background: #f7f7f7;
+  color: #eee;
+  border: 1px solid #451e77;
+  padding: 0 60px;
+  border-radius: 0px 0px 5px 5px;
+  padding-left: 30px;
+  margin-left: 40px;
+  margin-right: 40px;
+}
+
+.tab-nav-inner {
+  display: flex;
+  align-items: center;
+  height: 75px;
+  color: #451e77;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  gap: 32px;
+}
+
+.tab-brand {
+  font-size: 24px;
+  font-weight: 700;
+  color: #eee;
+  /* color: #451e77; */
+  background-color: #451e77;
+  white-space: nowrap;
+  padding: 10px 25px;
+  border: 0.1px solid #451e77;
+  border-radius: 5px;
+}
+
+.tab-brand-note {
+  font-size: 16px;
+  font-weight: 400;
+  color: #eee;
+  margin-left: 6px;
+}
+
+.tab-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.tab-btn {
+  font-size: 12px;
+  min-width: 110px;
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  color: #451e77;
+  cursor: pointer;
+  border-radius: 5px 5px 5px 5px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn:hover {
+  /* background: #ff7f0e; */
+  border: 0.75px solid #451e77;
+  color: #451e77;
+  /* font-weight: 600; */
+}
+
+.tab-btn-active {
+  background: #f1e8fe;
+  /* color: #eee; */
+  border: 0.1px solid #451e77;
+  font-weight: 600;
+}
+
+/* ---- Tab panels ---- */
+
+.tab-panel {
+  display: block;
+}
+
+.tab-panel-hidden {
+  display: none;
+}
+
+/* ---- About page ---- */
+
+.about-wrapper {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 100px 20px 80px;
+  /* padding-left: 0px;  */
+  width: 85%;
+}
+
+.about-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 16px;
+}
+
+.about-heading {
+  font-size: 18px;
+  font-weight: 700;
+  color: #444;
+  margin: 0 0 10px;
+  /* text-transform: uppercase; */
+  /* letter-spacing: 0.04em; */
+}
+
+.about-section {
+  /* margin-bottom: 36px; */
+  padding-bottom: 36px;
+  width: 100%;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.about-section:last-child {
+  border-bottom: none;
+}
+
+.about-note {
+  background: #fafafa;
+  border-radius: 6px;
+  padding: 16px 20px;
+  border: none;
+  display: none;
+}
+
+.about-text {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #555;
+  margin: 0;
+  width: 85%;
+}
+
+.about-text b {
+  color: #333;
+}
+
+/* ---- Sidebar inner content: switchable per tab ---- */
+
+.sidebar-inner {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-inner-hidden {
+  display: none;
+}
+
+.sidebar-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.sidebar-placeholder p {
+  font-size: 11px;
+  color: #ccc;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* ---- Glossary accordion ---- */
+
+.glossary-intro {
+  font-size: 14px;
+  color: #aaa;
+  margin: 0 0 20px 10px;
+}
+
+.glossary-section {
+  display: flex;
+  flex-direction: column;
+  width: 90%;
+}
+
+/* Each card is one accordion item */
+.glossary-card {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.glossary-card:first-of-type {
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Header button: full width, no browser button styling */
+.glossary-header {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 10px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  /* background-color: #f1e8fe; */
+  cursor: pointer;
+  line-height: 1.4;
+  margin-bottom: 10px;
+  border: 0.1px solid #451e77;
+  border-radius: 5px;
+}
+
+.glossary-header:hover {
+  color: #222;
+}
+
+/* Open card header shows active state */
+.glossary-card[data-open="true"] .glossary-header {
+  color: #222;
+}
+
+/* Body: fixed height so total glossary height stays constant.
+   80px fits all definitions -- increase if text wraps heavily. */
+.glossary-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease, padding 0.2s ease;
+  padding: 0;
+}
+
+.glossary-body.is-open {
+  max-height: 180px;
+  padding-bottom: 10px;
+  overflow-y: auto;
+}
+
+.glossary-body p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #777;
+  margin-bottom: 10px;
+  padding: 15px 10px;
+  padding-top: 0px;
+}
+
+/* ---- Glossary (sidebar) ---- */
+
+/* .glossary-section {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  width: 90%;
+  padding-top: 44px;
+  padding-left: 20px;
+}
+
+.glossary-heading {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  margin: 0 0 12px;
+}
+
+.glossary-card {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 10px 0;
+}
+
+.glossary-card:last-child {
+  border-bottom: none;
+}
+
+.glossary-term {
+  font-size: 11px;
+  font-weight: 700;
+  color: #444;
+  margin: 0 0 4px;
+}
+
+.glossary-def {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #777;
+  margin: 0;
+} */
+
+/* ---- Loading message ---- */
+
+#load-message {
+  font-size: 13px;
+  color: #aaa;
+  padding: 40px 0 20px;
+}
+
+/* ---- Vertical layout: narrow viewport (768px and below) ---- */
+
+@media (max-width: 768px) {
+
+  body {
+    height: auto;
+    overflow: auto;
+  }
+
+  /* Stack sidebar above right panel in a single column */
+  .page-layout {
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    padding-top: 48px;   /* clears fixed nav */
+  }
+
+  /* Sidebar: horizontal strip across full width, auto height */
+  .sidebar {
+    height: auto;
+    overflow-y: visible;
+    border-right: none;
+    border-bottom: 1px solid #e8e8e8;
+    padding: 16px 20px;
+    flex-direction: row;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .sidebar-title-block {
+    flex: 0 0 auto;
+  }
+
+  /* Glossary collapses to hidden on mobile sidebar -- too much height */
+  .sidebar-inner {
+    display: none;
+  }
+
+  .sidebar-footer {
+    flex: 0 0 100%;
+    padding-top: 0;
+    margin-top: 0;
+    border-top: none;
+  }
+
+  /* Right panel fills full width, scrolls naturally with page */
+  .right-panel {
+    overflow: visible;
+    height: auto;
+    width: 100%;
+  }
+
+  /* Chart cards: full bleed on narrow screens */
+  .chart-section {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding: 16px 12px 24px;
+    margin-bottom: 16px;
+    
+  }
+
+  /* Charts fill available width at all times */
+  #trend-container,
+  #heatmap-container {
+    width: 100%;
+    overflow-x: auto;   /* allows chart to scroll horizontally if it must */
+  }
+
+  /* About wrapper: tighter padding on narrow screens */
+  .about-wrapper {
+    padding: 24px 20px 48px;
+  }
+
+  /* Nav: tighter on mobile */
+  .tab-nav {
+    padding: 0 16px;
+  }
+
+  .tab-brand-note {
+    display: none;    /* saves nav space on very narrow screens */
+  }
+}
+
+/* ---- Very narrow: 375px phones ---- */
+
+@media (max-width: 420px) {
+
+  .tab-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .chart-section {
+    padding: 12px 8px 20px;
+  }
+
+  .about-text {
+    font-size: 12px;
+  }
+}
