@@ -1,4 +1,4 @@
-// trend_chart.js -- TP-V2
+// trend_chart.js - TP-V2
 // Timeline chart for the FIO-EISE dashboard.
 // Receives 52-row weekly bin data from L1_rolling_updated.json.
 // Returns a DOM node. Call: createTrendChart(l1Data, { width }).
@@ -80,46 +80,47 @@ function createTrendChart(data, { width = 960 } = {}) {
     { key: "GHGE",      display: "GHGE (Greenhouse Gas Emissions)" },
     { key: "LU",        display: "LU (Land Use)"                   },
     { key: "WU",        display: "WU (Water Use)"                  },
-    { key: "composite", display: "Composite Impact -- Overall"      },
+    { key: "composite", display: "Composite Impact - Overall"      },
   ];
 
   const EVENTS_BY_GROUP = {
     public_holidays: [
-      { date: "2023-01-03", label: "New Year's Day BH"  },
-      { date: "2023-04-15", label: "Good Friday BH"     },
+      // { date: "2023-01-03", label: "New Year's Day BH"  },
+      // { date: "2023-04-15", label: "Good Friday BH"     },
       { date: "2023-04-18", label: "Easter Monday BH"   },
       { date: "2023-05-02", label: "Early May BH"       },
-      { date: "2023-06-02", label: "Spring BH"          },
+      // { date: "2023-06-02", label: "Spring BH"          },
       { date: "2023-06-03", label: "Jubilee BH"         },
       { date: "2023-08-29", label: "Summer BH"          },
       { date: "2023-09-19", label: "State Funeral BH"   },
       { date: "2023-12-26", label: "Boxing Day BH"      },
-      { date: "2023-12-27", label: "Christmas Day BH"   },
+      // { date: "2023-12-27", label: "Christmas Day BH"   },
     ],
     cultural_events: [
       { date: "2023-03-27", label: "Mother's Day"       },
       { date: "2023-04-02", label: "Ramadan Start"      },
       { date: "2023-04-15", label: "Good Friday"        },
-      { date: "2023-04-18", label: "Easter Monday"      },
+      // { date: "2023-04-18", label: "Easter Monday"      },
       { date: "2023-05-02", label: "Ramadan End"        },
       { date: "2023-06-19", label: "Father's Day"       },
       { date: "2023-10-24", label: "Diwali"             },
       { date: "2023-10-31", label: "Halloween"          },
       { date: "2023-12-25", label: "Christmas"          },
+      { date: "2023-12-31", label: "New Year's Eve"          },
     ],
     school_calendar: [
-      { date: "2023-02-21", label: "SH-1 S"             },
-      { date: "2023-02-25", label: "SH-1 E"             },
-      { date: "2023-04-04", label: "SH-2 S"             },
-      { date: "2023-04-14", label: "SH-2 E"             },
-      { date: "2023-05-30", label: "SH-3 S"             },
-      { date: "2023-06-01", label: "SH-3 E"             },
-      { date: "2023-07-27", label: "SH-4 S"             },
-      { date: "2023-09-02", label: "SH-4 E"             },
-      { date: "2023-10-24", label: "SH-5 S"             },
-      { date: "2023-10-28", label: "SH-5 E"             },
-      { date: "2023-12-19", label: "SH-6 S"             },
-      { date: "2023-12-30", label: "SH-6 E"             },
+      { date: "2023-02-19", label: "Spring Half Term S"             },
+      { date: "2023-02-27", label: "Spring Half Term E"             },
+      { date: "2023-04-04", label: "Easter Holidays S"             },
+      { date: "2023-04-14", label: "Easter Holidays E"             },
+      { date: "2023-05-28", label: "Summer Half Term S"             },
+      { date: "2023-06-05", label: "Summer Half Term E"             },
+      { date: "2023-07-23", label: "Summer Holidays S"             },
+      { date: "2023-09-04", label: "Summer Holidays E"             },
+      { date: "2023-10-22", label: "Autumn Half Term S"             },
+      { date: "2023-10-30", label: "Autumn Half Term E"             },
+      { date: "2023-12-17", label: "Christmas Holidays S"             },
+      { date: "2023-12-30", label: "Christmas Holidays E"             },
     ],
     weather_events: [
       { date: "2023-06-16", label: "HW (3 days)"        },
@@ -127,14 +128,14 @@ function createTrendChart(data, { width = 960 } = {}) {
       { date: "2023-08-12", label: "HW (7 days)"        },
     ],
     sporting_events: [
-      { date: "2023-02-05", label: "SN S"               },
-      { date: "2023-03-19", label: "SN E"               },
-      { date: "2023-07-06", label: "WE S"               },
-      { date: "2023-07-31", label: "WE E"               },
-      { date: "2023-07-28", label: "CG S"               },
-      { date: "2023-08-08", label: "CG E"               },
-      { date: "2023-11-20", label: "WC S"               },
-      { date: "2023-12-18", label: "WC E"               },
+      // { date: "2023-02-05", label: "Six Nations S"               },
+      { date: "2023-03-19", label: "Six Nations E"               },
+      // { date: "2023-07-06", label: "UEFA Women's Euro S"               },
+      { date: "2023-07-31", label: "UEFA Women's Euro E"               },
+      // { date: "2023-07-28", label: "Commonwealth Games S"               },
+      { date: "2023-08-08", label: "CW Games E"               },
+      // { date: "2023-11-20", label: "FIFA World Cup S"               },
+      { date: "2023-12-18", label: "FIFA World Cup E"               },
     ],
   };
 
@@ -143,9 +144,7 @@ function createTrendChart(data, { width = 960 } = {}) {
     cultural_events : "",
     school_calendar : "SH = School Holidays  S = Period start  E = Period end",
     weather_events  : "HW = Heatwave  number in brackets = duration in days",
-    sporting_events : "CG = Commonwealth Games  SN = Six Nations  " +
-                      "WC = FIFA World Cup  WE = UEFA Women's Euro  " +
-                      "S = Period start  E = Period end",
+    sporting_events : "E = Period end  CW = Commonwealth",
   };
 
   const EVENT_GROUP_OPTIONS = [
@@ -167,7 +166,7 @@ function createTrendChart(data, { width = 960 } = {}) {
   if (!data.length || typeof data[0].week_start !== "string") {
     console.error("TP-V2: week_start field missing or not a string.");
     return Object.assign(document.createElement("div"), {
-      textContent: "Chart failed to load -- check console for details."
+      textContent: "Chart failed to load - check console for details."
     });
   }
 
@@ -201,7 +200,7 @@ function createTrendChart(data, { width = 960 } = {}) {
     WU        : buildSmoothedFromCol(data, "roll7_WU_perkg"),
   };
 
-  // Annual means from full 52-bin series -- used in tooltip % deviation
+  // Annual means from full 52-bin series - used in tooltip % deviation
   const annualMeans    = {};
   const annualMeansPkg = {};
   for (const m of Object.keys(METRICS)) {
@@ -222,7 +221,7 @@ function createTrendChart(data, { width = 960 } = {}) {
 
   // 1c: Helpers 
 
-  // Short SI labels for y-axis ticks -- K and M only.
+  // Short SI labels for y-axis ticks - K and M only.
   // Does not spell out million to keep tick labels compact.
   function axisFormatter(v) {
     const abs = Math.abs(v);
@@ -277,7 +276,7 @@ function createTrendChart(data, { width = 960 } = {}) {
     .style("margin-bottom", "6px")
     .text("Timeline of Environmental Impact from Food and Drink Sales");
 
-  // Static chart context -- always visible regardless of active state
+  // Static chart context - always visible regardless of active state
   container.append("div")
     .style("font-size", "14px")
     .style("color", "#666")
@@ -293,19 +292,19 @@ function createTrendChart(data, { width = 960 } = {}) {
       "footprints and how the chart can be configured."
     );
 
-  // Dynamic metric state label -- colour and text updated in redraw()
+  // Dynamic metric state label - colour and text updated in redraw()
   const titleDiv = container.append("div")
     .style("font-size", "13px")
     .style("font-weight", "600")
     .style("margin-bottom", "2px");
 
-  // // Dynamic subtitle -- updated in redraw()
+  // // Dynamic subtitle - updated in redraw()
   // const subtitleDiv = container.append("div")
   //   .style("font-size", "11px")
   //   .style("color", "#999")
   //   .style("margin-bottom", "10px");
 
-  // Dynamic subtitle -- updated in redraw()
+  // Dynamic subtitle - updated in redraw()
   const subtitleDiv = container.append("div")
     .style("font-size", "11px")
     .style("color", "#999")
@@ -672,7 +671,7 @@ function createTrendChart(data, { width = 960 } = {}) {
   //   .style("font-size", "12px")
   //   .style("color", "#555");
 
-  // Two stat lines below the swatch -- values updated in redraw()
+  // Two stat lines below the swatch - values updated in redraw()
   const legendMeanSF = legendBlock.append("span")
     .style("font-size", "12px").style("color", "#555");
 
@@ -697,7 +696,7 @@ function createTrendChart(data, { width = 960 } = {}) {
   const xAxisGroup = g.append("g").attr("transform", `translate(0,${H})`);
   const yAxisGroup = g.append("g");
 
-  // Y-axis label -- text updated in redraw(), y anchored to MARGIN.left
+  // Y-axis label - text updated in redraw(), y anchored to MARGIN.left
   const yAxisLabelEl = g.append("text")
     .attr("transform", "rotate(-90)")
     .attr("x", -(H / 2))
@@ -706,7 +705,7 @@ function createTrendChart(data, { width = 960 } = {}) {
     .style("font-size", "11px")
     .style("fill", "#666");
 
-  // Date x-axis label -- static, always visible
+  // Date x-axis label - static, always visible
   g.append("text")
     .attr("x", W / 2)
     .attr("y", H + LAYOUT.DATE_LABEL_Y)
@@ -743,7 +742,7 @@ function createTrendChart(data, { width = 960 } = {}) {
     .style("display", "none").style("max-width", "240px")
     .style("z-index", "10");
 
-  // Footnote below SVG -- text set by redrawEventMarkers()
+  // Footnote below SVG - text set by redrawEventMarkers()
   const footnoteEl = container.append("p")
     .style("font-size", LAYOUT.FOOTNOTE_SIZE)
     .style("color", "#bbb")
@@ -841,12 +840,12 @@ function createTrendChart(data, { width = 960 } = {}) {
     );
     if (!plotData.length) return;
 
-    // X scale -- hoisted for redrawEventMarkers()
+    // X scale - hoisted for redrawEventMarkers()
     xScale = d3.scaleTime()
       .domain([dFrom, dTo])
       .range([0, W]);
 
-    // // Y scale -- composite zero-baseline, per-kg minimum range enforced
+    // // Y scale - composite zero-baseline, per-kg minimum range enforced
     // const [yLow0, yHigh0] = d3.extent(plotData, d => d.value);
     // let yLow = yLow0, yHigh = yHigh0;
 
@@ -897,7 +896,7 @@ function createTrendChart(data, { width = 960 } = {}) {
       .domain([yDomainMin, yDomainMax])
       .range([H, 0]);
 
-    // X-axis ticks -- force Jan label when dFrom is mid-January
+    // X-axis ticks - force Jan label when dFrom is mid-January
     const regularTicks = d3.timeMonth.range(
       d3.timeMonth.ceil(dFrom), dTo
     );
@@ -914,7 +913,7 @@ function createTrendChart(data, { width = 960 } = {}) {
       .style("font-size", "10px")
       .attr("dy", "0.8em");
 
-    // // Y-axis -- axisFormatter for short compact tick labels
+    // // Y-axis - axisFormatter for short compact tick labels
     // yAxisGroup.call(
     //   d3.axisLeft(yScale)
     //     .ticks(6)
@@ -935,7 +934,7 @@ function createTrendChart(data, { width = 960 } = {}) {
     yAxisGroup.call(yAxisCall);
     yAxisGroup.selectAll("text").style("font-size", "10px");
 
-    // Gridlines -- horizontal only, aligned to y-axis ticks
+    // Gridlines - horizontal only, aligned to y-axis ticks
     gridGroup.selectAll("*").remove();
     gridGroup.call(
       d3.axisLeft(yScale)
@@ -948,7 +947,7 @@ function createTrendChart(data, { width = 960 } = {}) {
       .attr("stroke-dasharray", "2,2");
     gridGroup.select(".domain").remove();
 
-    // Y-axis label -- updates with metric and toggle state
+    // Y-axis label - updates with metric and toggle state
     yAxisLabelEl.text(activePkg ? cfg.pkg_label : cfg.label);
 
     // Event markers
@@ -1048,14 +1047,14 @@ function createTrendChart(data, { width = 960 } = {}) {
     // titleDiv
     //   .style("color", cfg.colour)
     //   .text(
-    //     `${cfg.short}${activePkg ? " -- Per kg" : " -- Total SF"}`
+    //     `${cfg.short}${activePkg ? " - Per kg" : " - Total SF"}`
     //   );
     // subtitleDiv.text("Values shown are averaged over 7 days");
   
     // titleDiv
     //   .style("color", cfg.colour)
     //   .text(
-    //     `${cfg.short}${activePkg ? " -- Per kg" : " -- Total SF"}`
+    //     `${cfg.short}${activePkg ? " - Per kg" : " - Total SF"}`
     //   );
     // subtitleDiv.text("Values shown are averaged over 7 days");
 
@@ -1064,12 +1063,12 @@ function createTrendChart(data, { width = 960 } = {}) {
     //   .attr("stroke", cfg.colour);
     // legendLabel
     //   .style("color", cfg.colour)
-    //   .text(`${cfg.short} -- ${activePkg ? "Per kg" : "Total SF"}`);
+    //   .text(`${cfg.short} - ${activePkg ? "Per kg" : "Total SF"}`);
 
     legendSwatch.select(".legend-line").attr("stroke", cfg.colour);
     legendLabel
       .style("color", cfg.colour)
-      .text(`${cfg.short} -- ${activePkg ? "Per kg" : "Total SF"}`);
+      .text(`${cfg.short} - ${activePkg ? "Per kg" : "Total SF"}`);
     legendMeanSF.text(
       `Annual mean SF: ${statFmt(annualMeans[activeMKey])} ${cfg.unit}`
     );
