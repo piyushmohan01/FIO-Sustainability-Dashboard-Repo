@@ -186,7 +186,7 @@ function createHeatmap(weeklyData, { width = 900, onStats = null } = {}) {
   const DIM_OPACITY    = 1;        // 1 = no row dimming on hover
   const MISSING_FILL   = "#f5f5f5";
   const LABEL_WIDTH    = 154;
-  const RANK_AXIS_PAD  = 60;       // reserved on right for rank numbers
+  const RANK_AXIS_PAD  = 130;       // reserved on right for rank numbers
   const MARGIN = { top: 62, right: RANK_AXIS_PAD, bottom: 72, left: LABEL_WIDTH };
 
   const CAT_OPTIONS = [10, 30, 65];

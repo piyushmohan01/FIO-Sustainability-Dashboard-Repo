@@ -152,12 +152,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const trendContainer   = document.getElementById("trend-container");
     const heatmapContainer = document.getElementById("heatmap-container");
-    // Right panel width minus chart-section padding (2 x 24px)
-    const rightPanel = document.querySelector(".right-panel");
-    const rightW     = rightPanel ? rightPanel.getBoundingClientRect().width : 0;
-    const width      = (trendContainer.getBoundingClientRect().width
-                       || (rightW > 0 ? rightW - 10 : 0)
-                       || window.innerWidth - 280 - 10);
+    
+    const chartSection  = trendContainer.closest(".chart-section");
+    const sectionRect   = chartSection?.getBoundingClientRect().width ?? 0;
+    const rightPanelW   = document.querySelector(".right-panel")
+                            ?.getBoundingClientRect().width ?? 0;
+    const rawWidth      = sectionRect > 0
+      ? sectionRect - 48
+      : rightPanelW > 0
+        ? rightPanelW - 48
+        : trendContainer.getBoundingClientRect().width;
+    const width         = Math.max(rawWidth, 320);
 
     if (loadMsg) loadMsg.style.display = "none";
 
@@ -165,6 +170,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     const trendNode = createTrendChart(l1Data, { width });
     trendContainer.appendChild(trendNode);
 
+    // Heatmap gets its own width read from its own chart-section
+    const hmSection   = heatmapContainer.closest(".chart-section");
+    const hmSectW     = hmSection?.getBoundingClientRect().width ?? 0;
+    const hmRawWidth  = hmSectW > 0
+      ? hmSectW - 48
+      : rightPanelW > 0
+        ? rightPanelW - 48
+        : heatmapContainer.getBoundingClientRect().width;
+    const heatmapWidth = Math.max(hmRawWidth, 320);
+
+    const heatmapNode = createHeatmap(l2aWeekly, { width: heatmapWidth });
+    heatmapContainer.appendChild(heatmapNode);
 
     // Simple formatter for the stats panel - mirrors valFormatter in heatmap.js
     // without importing it. Kept here to keep dashboard.js self-contained.
@@ -189,8 +206,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     //       statPkgMean.textContent = fmtStat(pkgAvg)  + " " + cfg.pkg_unit;
     //   }
     // });
-    const heatmapNode = createHeatmap(l2aWeekly, { width });
-    heatmapContainer.appendChild(heatmapNode);
 
     ///////
 

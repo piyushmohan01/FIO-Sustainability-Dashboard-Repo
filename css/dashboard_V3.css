@@ -45,13 +45,13 @@ body {
   overflow: hidden;
 }
 
-/* Right panel scrolls independently -- goes behind fixed nav when scrolling */
+/* Right panel scrolls independently - goes behind fixed nav when scrolling */
 .right-panel {
-  overflow-y: auto;
+  overflow-y: scroll;       /* always show scrollbar track, never shifts layout */
   overflow-x: hidden;
   height: 100%;
   background: #f7f7f7;
-  /* background: #fff; */
+  scrollbar-gutter: stable; /* modern browsers: reserves gutter without scrollbar */
 }
 
 /* Tab panels fill their content area naturally */
@@ -64,14 +64,13 @@ body {
 }
 
 /* Chart containers never exceed right-panel width */
-#trend-container,
+/* #trend-container,
 #heatmap-container {
   width: 100%;
   overflow: auto;
   overflow-y: auto;
   overflow-x: hidden;
-  /* white-space: nowrap; */
-}
+} */
 
 .list-items {
   font-size: 14px;
@@ -270,11 +269,26 @@ body {
 
 /* Chart containers */
 
-#trend-container,
+/* #trend-container,
 #heatmap-container {
   width: 98%;
   overflow-x: hidden;
-  /* margin-right: 10px; */
+} */
+
+#trend-container,
+#heatmap-container {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* SVG max-width prevents it exceeding its container
+   even if the width attribute is slightly too large.
+   display: block removes the inline-block descender gap. */
+#trend-container svg,
+#heatmap-container svg {
+  max-width: 100%;
+  display: block;
 }
 
 /* Global metric controls */
