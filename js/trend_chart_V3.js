@@ -10,7 +10,7 @@ function createTrendChart(data, { width = 960 } = {}) {
   // All pixel dimensions and spacing values in one block.
   // Change values here only
   const LAYOUT = {
-    H               : 320,
+    H               : 300,
     MARGIN          : { top: 100, right: 60, bottom: 40, left: 88 },
     PKG_PAD_FACTOR  : 0.5,   // y padding fraction for per-kg view
     PKG_MIN_RANGE   : 1.5,    // min y span enforced for per-kg view
@@ -281,14 +281,14 @@ function createTrendChart(data, { width = 960 } = {}) {
     .style("font-size", "14px")
     .style("color", "#666")
     .style("line-height", "1.6")
-    .style("margin-top", "12px")
-    .style("margin-bottom", "24px")
+    .style("margin-top", "16px")
+    .style("margin-bottom", "30px")
     .style("max-width", "100%")
     .text(
       "This chart can be used to explore the seasonal variation in " +
       "environmental impacts from food and drink sales for total sales " +
       "footprints (SF) and for per-kg sales footprints (SF). " +
-      "Please visit the About this tool page to learn more about these " +
+      "Please visit the 'About this tool' page to learn more about these " +
       "footprints and how the chart can be configured."
     );
 
@@ -1028,13 +1028,16 @@ function createTrendChart(data, { width = 960 } = {}) {
              </div>`
           );
 
-        const cRect = container.node().getBoundingClientRect();
-        const tipW  = 240;
-        const left  = event.clientX - cRect.left + 14;
+        const cRect  = container.node().getBoundingClientRect();
+        const tipW   = 240;
+        const tipH   = 130;
+        const left   = event.clientX - cRect.left + 14;
+        const top    = event.clientY - cRect.top;
+        const flipUp = top + tipH + 10 > cRect.height;
         tooltip
-          .style("left",
-            (left + tipW > cRect.width ? left - tipW - 24 : left) + "px")
-          .style("top", (event.clientY - cRect.top - 10) + "px");
+          .style("left", (left + tipW > cRect.width ? left - tipW - 24 : left) + "px")
+          .style("top",  (flipUp ? top - tipH - 10 : top + 10) + "px");
+
       })
       .on("mouseleave", function() {
         hoverLine.style("display", "none");

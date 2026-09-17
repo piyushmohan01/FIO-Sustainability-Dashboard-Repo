@@ -3,7 +3,7 @@
 // Receives weekly bin data from L2a_weekly_updated.json (no daily file).
 // Returns a DOM node. Call: createHeatmap(weeklyData, { width, onStats }).
 
-function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
+function createHeatmap(weeklyData, { width = 900, onStats = null } = {}) {
 
   // 1a: Config
 
@@ -177,7 +177,7 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
     { key: "sporting_events", display: "Sporting Events" },
   ];
 
-  const MIN_CHART_H    = 270;
+  const MIN_CHART_H    = 250;
   const MAX_CHART_H    = 1200;
   const GAP            = 2;
   const MONTH_GAP      = 0;
@@ -186,7 +186,7 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
   const DIM_OPACITY    = 1;        // 1 = no row dimming on hover
   const MISSING_FILL   = "#f5f5f5";
   const LABEL_WIDTH    = 154;
-  const RANK_AXIS_PAD  = 48;       // reserved on right for rank numbers
+  const RANK_AXIS_PAD  = 60;       // reserved on right for rank numbers
   const MARGIN = { top: 62, right: RANK_AXIS_PAD, bottom: 72, left: LABEL_WIDTH };
 
   const CAT_OPTIONS = [10, 30, 65];
@@ -327,14 +327,14 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
     .style("font-size", "14px")
     .style("color", "#666")
     .style("line-height", "1.6")
-    .style("margin-top", "12px")
-    .style("margin-bottom", "24px")
+    .style("margin-top", "16px")
+    .style("margin-bottom", "30px")
     .style("max-width", "100%")
     .text(
       "This chart can be used to explore seasonal variation in environmental " +
       "impacts from food and drink sales for specific food and drink categories. " +
       "Note that the colour scales are only comparable within " +
-      "and not across categories."
+      "and not across categories." + "Please visit the 'About this tool' page to learn more."
     );
 
   // // Top row: metric dropdown + per-kg pill
@@ -807,7 +807,7 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
         const halfSpan = ref?.[activeDivCol]  ?? 1;
         rowScales.set(cat,
           d3.scaleDiverging(cfg.pkg_interpolator)
-            .domain([mean - halfSpan, mean, mean + halfSpan])
+            .domain([mean - halfSpan * 1.5, mean, mean + halfSpan * 1.5])
             .clamp(true)
         );
       } else {
@@ -828,9 +828,9 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
     if (displayDates.length) {
       const firstMonth = displayDates[0].getMonth();
       monthGroup.append("text")
-        .attr("x", colX(0)).attr("y", -18)
+        .attr("x", colX(0)).attr("y", -10)
         .attr("text-anchor", "start")
-        .style("font-size", "9px").style("fill", "#555").style("font-weight", "600")
+        .style("font-size", "11px").style("fill", "#555").style("font-weight", "600")
         .text(fmtMonth(displayDates[0]));
       monthsDrawn.add(firstMonth);
     }
@@ -848,9 +848,9 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
 
       const x1 = colX(colIdx);
       monthGroup.append("text")
-        .attr("x", x1).attr("y", -18)
+        .attr("x", x1).attr("y", -10)
         .attr("text-anchor", "start")
-        .style("font-size", "9px").style("fill", "#555").style("font-weight", "600")
+        .style("font-size", "11px").style("fill", "#555").style("font-weight", "600")
         .text(fmtMonth(monthDate));
 
       dividerGroup.append("line")
@@ -887,14 +887,14 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
         .attr("dominant-baseline", "central")
         .style("font-size", labelFontSize).style("fill", "#444")
         // .text(cat.length > 26 ? cat.slice(0, 25) + "\u2026" : cat);
-        .text((cat ?? "").length > 26 ? cat.slice(0, 25) + "\u2026" : (cat ?? ""));
+        .text((cat ?? "").length > 20 ? cat.slice(0, 25) + "\u2026" : (cat ?? ""));
     });
 
     // Rank axis header with hover hint
     rankGroup.append("text")
       .attr("x", W + 24).attr("y", -6)
       .attr("text-anchor", "middle")
-      .style("font-size", "9px").style("fill", "#999").style("font-weight", "600")
+      .style("font-size", "11px").style("fill", "#999").style("font-weight", "600")
       .style("cursor", "default")
       .text("Rank")
       .on("mouseover", function(event) {
@@ -924,7 +924,7 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
         .attr("x", W + 24).attr("y", cy)
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "central")
-        .style("font-size", "8px").style("fill", "#bbb")
+        .style("font-size", "11px").style("fill", "#bbb")
         .style("cursor", "default")
         .text(rank)
         .on("mouseover", function(event) {
@@ -990,22 +990,22 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
         .attr("stroke", "#ccc").attr("stroke-width", 1)
         .attr("stroke-dasharray", "4,3");
 
-      // Dot and short tick below grid
-      markerG.append("circle")
-        .attr("cx", ex).attr("cy", chart_H + 4)
-        .attr("r", 2).attr("fill", "#999");
-
       markerG.append("line")
         .attr("x1", ex).attr("x2", ex)
-        .attr("y1", chart_H + 4).attr("y2", chart_H + 12)
+        .attr("y1", chart_H + 6).attr("y2", chart_H + 14)
         .attr("stroke", "#999").attr("stroke-width", 1.5);
 
-      // Horizontal label below tick
-      markerG.append("text")
-        .attr("x", ex).attr("y", chart_H + 22)
-        .attr("text-anchor", "middle")
-        .style("font-size", "8px").style("fill", "#aaa")
-        .text(evt.label);
+      // Dot and short tick below grid
+      markerG.append("circle")
+        .attr("cx", ex).attr("cy", chart_H + 4 + 13)
+        .attr("r", 4).attr("fill", "#999");
+
+      // // Horizontal label below tick
+      // markerG.append("text")
+      //   .attr("x", ex).attr("y", chart_H + 22)
+      //   .attr("text-anchor", "middle")
+      //   .style("font-size", "8px").style("fill", "#aaa")
+      //   .text(evt.label);
 
       markerG
         .on("mouseover", function(event) {
@@ -1124,12 +1124,15 @@ function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
         );
         //            <div><b>Weekly mean:</b> ${valFormatter(cell.value)} ${activeUnit}</div>
 
-        const cRect = container.node().getBoundingClientRect();
-        const tipW  = 280;
-        const left  = event.clientX - cRect.left + 14;
+        const cRect  = container.node().getBoundingClientRect();
+        const tipW   = 280;
+        const tipH   = 180;
+        const left   = event.clientX - cRect.left + 14;
+        const top    = event.clientY - cRect.top;
+        const flipUp = top + tipH + 10 > cRect.height;
         tooltip
           .style("left", (left + tipW > cRect.width ? left - tipW - 24 : left) + "px")
-          .style("top",  (event.clientY - cRect.top - 10) + "px");
+          .style("top",  (flipUp ? top - tipH - 10 : top + 10) + "px");
       })
       .on("mouseleave", function() {
         tooltip.style("display",    "none");

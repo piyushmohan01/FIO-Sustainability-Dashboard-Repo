@@ -48,7 +48,7 @@ body {
 /* Right panel scrolls independently -- goes behind fixed nav when scrolling */
 .right-panel {
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   height: 100%;
   background: #f7f7f7;
   /* background: #fff; */
@@ -68,7 +68,23 @@ body {
 #heatmap-container {
   width: 100%;
   overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* white-space: nowrap; */
 }
+
+.list-items {
+  font-size: 14px;
+  line-height: 25px;
+}
+
+/* #heatmap-container {
+  padding-right: 0px;
+} */
+
+/* #trend-container {
+  overflow-x:hidden;
+} */
 
 /* Left sidebar: 1/3 */
 
@@ -257,7 +273,7 @@ body {
 #trend-container,
 #heatmap-container {
   width: 98%;
-  overflow-x: auto;
+  overflow-x: hidden;
   /* margin-right: 10px; */
 }
 
@@ -343,6 +359,7 @@ body {
   padding: 24px 32px 32px;
   /* padding-top: 35px; */
   border-bottom: 0px;
+  overflow-x:hidden;
   /* margin-bottom: -10px; */
 }
 
@@ -484,6 +501,7 @@ body {
 
 .tab-buttons {
   display: flex;
+  justify-content: space-around;
   gap: 10px;
 }
 
@@ -493,24 +511,26 @@ body {
   padding: 10px 20px;
   border: none;
   background: none;
-  color: #451e77;
+  color: #444;
   cursor: pointer;
+  border: 0.1px solid #451e77;
   border-radius: 5px 5px 5px 5px;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.1s;
 }
 
 .tab-btn:hover {
   /* background: #ff7f0e; */
-  border: 0.75px solid #451e77;
+  border: 0.1px solid #451e77;
   color: #451e77;
   /* font-weight: 600; */
 }
 
 .tab-btn-active {
   background: #f1e8fe;
-  /* color: #eee; */
-  border: 0.1px solid #451e77;
-  font-weight: 600;
+  color: #333;
+  border: 1px solid #451e77;
+  /* font-weight: bold; */
+  /* font-weight: 600; */
 }
 
 /* ---- Tab panels ---- */
@@ -534,7 +554,7 @@ body {
 }
 
 .about-title {
-  font-size: 20px;
+  font-size: 28px;
   font-weight: 700;
   color: #222;
   margin: 0 0 16px;
@@ -612,8 +632,8 @@ body {
 
 .glossary-intro {
   font-size: 14px;
-  color: #aaa;
-  margin: 0 0 20px 10px;
+  color: #444;
+  margin: 0 0 20px 5px;
 }
 
 .glossary-section {
@@ -639,9 +659,8 @@ body {
   border: none;
   padding: 10px 10px;
   font-size: 11px;
-  font-weight: 700;
-  color: #555;
-  /* background-color: #f1e8fe; */
+  font-weight: 600;
+  color: #444;
   cursor: pointer;
   line-height: 1.4;
   margin-bottom: 10px;
@@ -651,6 +670,7 @@ body {
 
 .glossary-header:hover {
   color: #222;
+  background-color: #f1e8fe;
 }
 
 /* Open card header shows active state */
@@ -805,7 +825,7 @@ body {
   #trend-container,
   #heatmap-container {
     width: 100%;
-    overflow-x: auto;   /* allows chart to scroll horizontally if it must */
+    overflow: auto;   /* allows chart to scroll horizontally if it must */
   }
 
   /* About wrapper: tighter padding on narrow screens */
