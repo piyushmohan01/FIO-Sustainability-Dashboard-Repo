@@ -1,6 +1,6 @@
 # Sustainable Food Sales Explorer (Dashboard)
 
-![Sustainable Food Sales Explorer - Timeline View](./images/full-dashboard-timeline.png "Timeline View")
+![Sustainable Food Sales Explorer - Timeline View](./images/full-dashboard-timeline-updated.png "Timeline View")
 
 An interactive web dashboard for exploring the seasonal environmental impact of food and drink purchasing in the UK. Built with D3.js and deployed as a static site (GitHub Pages) for the current prototype.
 
@@ -24,7 +24,7 @@ Each chart has its own independent metric selector, Total SF / Per kg toggle, ev
 > **Prototype status:** All patterns shown use dummy data generated outside the Trusted Research Environment (TRE). Real 2022 retailer data will be connected following VRE validation and approval.
 
 
-![Sustainable Food Sales Explorer - Heatmap View](./images/full-dashboard-heatmap.png "Heatmap View")
+![Sustainable Food Sales Explorer - Heatmap View](./images/full-dashboard-heatmap-updated.png "Heatmap View")
 ---
 
 ## Project Structure
@@ -213,7 +213,7 @@ Located in `js/heatmap_V3.js`. Receives the `L2a_weekly_updated.json` array only
 |---|---|---|
 | `activeMetric` | string | Active metric: `"GHGE"`, `"LU"`, `"WU"` |
 | `activePkg` | boolean | `false` = Total SF, `true` = Per kg |
-| `activeN` | number | Category rows displayed: 10, 30, or 65 |
+| `activeN` | number | Category rows displayed: 10, 15, or 30
 | `activeEventGroup` | string | Active event overlay group key |
 | `totalWidth` | number | Chart render width, floored at MIN_CHART_WIDTH |
 | `W` | number | Inner chart width (totalWidth minus margins) |
