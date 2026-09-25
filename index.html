@@ -3,42 +3,193 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FIO Food Dashboard (Prototype V1)</title>
-
-  <!-- D3.js v7: loaded so it is available when chart scripts execute -->
+  <title>Sustainable Food Sales Explorer</title>
+  <!-- D3.js v7: loaded -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
-
   <link rel="stylesheet" href="css/dashboard_V3.css">
 </head>
 <body>
-  <!-- Fixed nav: highest z-order, full width -->
+
+  <!-- NAV BAR -->
+  <!-- Fixed, full-width, highest z-order. Three child blocks:
+       brand (left), tab buttons (centre-left), logos (right).
+       space-between in CSS pushes logos to far right as screen widens. -->
   <nav class="tab-nav">
     <div class="tab-nav-inner">
-      <span class="tab-brand">FIO-EISE
-        <span class="tab-brand-note">dummy data</span>
-      </span>
-      <div class="tab-buttons">
-        <button class="tab-btn tab-btn-active" data-panel="about-panel"
-          data-sidebar="sidebar-about">About this tool</button>
-        <button class="tab-btn" data-panel="dashboard-panel"
-          data-sidebar="sidebar-dashboard">FIO-EISE</button>
+
+      <!-- Brand: purple box with bold white text, anchored left -->
+      <div class="nav-brand-block">
+        <span class="tab-brand">Sustainable Food Sales Explorer</span>
       </div>
+
+      <!-- Tab buttons: three views on the dashboard.
+           About page set active for default page on load -->
+      <div class="tab-buttons">
+        <button class="tab-btn tab-btn-active"
+          data-panel="about-panel"
+          data-sidebar="sidebar-about">About this tool</button>
+        <button class="tab-btn"
+          data-panel="timeline-panel"
+          data-sidebar="sidebar-timeline">Overall Seasonal Patterns</button>
+        <button class="tab-btn"
+          data-panel="heatmap-panel"
+          data-sidebar="sidebar-heatmap">Category-level Patterns</button>
+      </div>
+
+      <!-- Logo block: anchored right -->
+      <div class="nav-logos">
+        <img class="nav-logo"
+          src="https://ppfi-imd.hasp.ac.uk/assets/hasp_logo.png"
+          alt="HASP Data Service">
+        <!-- <img class="nav-logo"
+          src="https://www.abdn.ac.uk/img/1200x/media/site/rowett/content-images/Picture1.jpg"
+          alt="FIO Food"> -->
+      </div>
+
     </div>
   </nav>
 
-  <!-- Page layout: sidebar + right panel, fills space below nav -->
-  <div class="page-layout">
+  <!-- About panel: full-width, without the sidebar grid.
+       Shown when About tab is active, hidden otherwise.
+       Sits at the same fixed offset as the grid layout below. -->
+  <div id="about-panel" class="tab-panel about-page-panel">
+    <div class="about-two-col">
 
-    <!-- Sidebar: shared, fixed. Inner content updates per tab via JS -->
+      <div class="about-col about-col-left">
+
+        <div class="about-section">
+          <h1 class="about-title">
+            Sustainable Food Sales Explorer
+          </h1>
+          <p class="about-text">
+            This dashboard shows the environmental impact of food and drink
+            purchases across a calendar year (2022) from a major UK
+            supermarket retailer. Sales from loyalty card holders living in
+            Yorkshire and the Humber region were linked to product-level
+            environmental sustainability estimates to show how the carbon,
+            land use, and water use footprints of all purchases change over
+            time and across different food categories.
+          </p>
+        </div>
+
+        <div class="about-section">
+          <h2 class="about-heading">Funding Information</h2>
+          <p class="about-text">
+            The research leading to these results has received funding
+            through the Transforming the UK Food System (TUKFS) for
+            Healthy People and a Healthy Environment SPF Programme,
+            delivered by UKRI, in partnership with the Global Food
+            Security Programme, BBSRC, ESRC, MRC, NERC, Defra, DHSC,
+            OHID, Innovate UK and FSA (FIO-Food award: BB/W018021/1).
+          </p>
+        </div>
+
+                <div class="about-section">
+          <h2 class="about-heading">Dashboard Controls</h2>
+          <ul class="list-items">
+            <li><b>Metric (Dropdown):</b> Switch between GHGE, LU, WU, and Composite.</li>
+            <li><b>Total SF / Per kg (Toggle):</b> Switch between volume-derived footprint and per-kg composition.</li>
+            <li><b>Date Range (Date pickers):</b> Select start and end dates to zoom into a window.</li>
+            <li><b>Reset Date (Button):</b> Return to the full date range.</li>
+            <li><b>N categories (Dropdown):</b> Number of categories shown in the heatmap.</li>
+          </ul>
+        </div>
+
+                <div class="about-section">
+          <h2 class="about-heading">Suggested Steps to Get Started</h2>
+          <ol class="list-items">
+            <li>Select a metric from the dropdown to update the chart.</li>
+            <li>Toggle between Total SF and Per kg to switch views.</li>
+            <li>Use the From and To date pickers to narrow to a period of interest.</li>
+            <li>Hover on any data point, marker, or cell to read exact values.</li>
+            <li>Use the event overlay dropdown to mark key dates.</li>
+            <li>Reset dates returns to the full year view.</li>
+          </ol>
+        </div>
+
+      </div>
+
+      <div class="about-col about-col-right">
+
+        <div class="about-section" style="margin-top: 10px;">
+          <h2 class="about-heading">About the Metrics</h2>
+          <ul class="list-items">
+            <li><b>GHGE</b> = Greenhouse Gas Emissions (kg CO2-equivalent)</li>
+            <li><b>LU</b> = Land Use (agricultural land area [m&#178;] multiplied by length of time occupied [years])</li>
+            <li><b>WU</b> = Water Use (agricultural fresh water withdrawals in litres)</li>
+            <li>A <b>Composite Impact score</b>, calculated by scaling each of the above metrics between 0 and 1 and calculating the normalised average of the three scaled metrics.</li>
+          </ul>
+          <p class="about-text">
+            Environmental impact data were derived from Poore and Nemechek's
+            global averages for food and drink commodities
+            <a href="https://doi.org/10.1126/science.aaq0216">[1]</a>,
+            and were linked to products as described here
+            <a href="https://doi.org/10.31235/osf.io/rxf9j_v1">[2]</a>.
+            The system boundaries are from cradle to store gate.
+          </p>
+        </div>
+
+        <div class="about-section">
+          <h2 class="about-heading">How can this dashboard be used?</h2>
+          <p class="about-text">
+            The dashboard has two charts, which allow both a high-level
+            overview of environmental footprint trends across a full year,
+            as well as exploration of environmental footprints down to
+            individual food categories.
+          </p>
+          <ol class="list-items" style="margin-top: 10px;">
+            <li><b>TIMELINE CHART (Overall Seasonal Patterns tab):</b> Shows
+              one smoothed trend line across the year per metric, rising when
+              purchasing was more environmentally intensive.
+              <ul>
+                <li><b>Choose Metric:</b> Select a metric using the dropdown.</li>
+                <li><b>Choose Unit:</b> Switch between Total SF and Per kg.</li>
+                <li><b>Choose Date Range:</b> Use From and To pickers to zoom into any period.</li>
+                <li><b>Explore Values:</b> Hover anywhere to snap to the nearest data point.</li>
+                <li><b>Event Overlay:</b> Select different events to overlay on the graph.</li>
+              </ul>
+            </li>
+            <br>
+            <li><b>HEATMAP CHART (Category-level Patterns tab):</b> Shows how
+              the environmental impact of individual food categories varies
+              across the year. Each row is one food category, each column is one week.
+              <ul>
+                <li><b>Choose Metric and Unit:</b> Select a metric and toggle Total SF or Per kg.</li>
+                <li><b>Choose Number of Categories:</b> Set how many categories to show using the top N dropdown.</li>
+                <li>Hover on any cell to read week's rank, deviation from annual mean, and annual contribution.</li>
+              </ul>
+            </li>
+          </ol>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart layout: sidebar grid shown only when a chart tab is active.
+       Hidden when About tab is active via the layout-hidden class in JS. -->
+  <div id="chart-layout" class="page-layout">
+
+    <!-- Sidebar: chart pages only. Inner content swaps via JS on tab click. -->
     <aside class="sidebar">
 
-      <!-- <div class="sidebar-title-block">
-        <h1 class="sidebar-title">FIO-EISE</h1>
-        <p class="sidebar-tag">Prototype V1: dummy data</p>
-      </div> -->
 
-      <!-- Dashboard sidebar: glossary accordion -->
-      <div id="sidebar-dashboard" class="sidebar-inner sidebar-inner-hidden">
+      <!-- Timeline sidebar: how-to text above glossary cards.
+           Shown when 'Overall Seasonal Patterns' tab is active.
+           How-to text copied from About page timeline section. -->
+      <div id="sidebar-timeline" class="sidebar-inner sidebar-inner-hidden">
+
+        <div class="sidebar-howto">
+          <p class="sidebar-howto-heading">How to use the Timeline chart</p>
+          <ul class="sidebar-howto-list">
+            <li><b>Choose Metric:</b> Select GHGE, LU, WU, or Composite using the dropdown.</li>
+            <li><b>Choose Unit:</b> Toggle between Total SF (volume and composition combined) and Per kg (composition only, controls for total volume purchased).</li>
+            <li><b>Choose Date Range:</b> Use From and To date pickers to zoom into any period. The y-axis rescales automatically.</li>
+            <li><b>Explore Values:</b> Hover anywhere on the chart to snap to the nearest data point and read the value, annual mean, and deviation.</li>
+            <li><b>Event Overlay:</b> Use the dropdown to overlay public holidays, school terms, weather events, or sporting events.</li>
+          </ul>
+        </div>
+
         <p class="glossary-intro">Click a term to read its definition.</p>
         <div class="glossary-section">
 
@@ -87,32 +238,247 @@
           <div class="glossary-card" data-open="false">
             <button class="glossary-header">LCFS Category</button>
             <div class="glossary-body">
-              <p>One of 65 food and drink groups following the Office for National Statistics Living Costs and Food Survey classification. Used consistently across UK national statistics.</p>
+              <p>One of 65 food and drink groups following the Office for National Statistics Living Costs and Food Survey classification, further narrowed down to a set of 30.</p>
             </div>
           </div>
 
         </div>
       </div>
 
-      <!-- About sidebar: empty placeholder for future funding/logos -->
-      <div id="sidebar-about" class="sidebar-inner">
-        <div class="sidebar-placeholder">
-          <p>Funding information and stakeholder logos will appear here.</p>
+      <!-- Heatmap sidebar: how-to text above glossary cards.
+           Shown when 'Category-level Patterns' tab is active.
+           How-to text copied from About page heatmap section. -->
+      <div id="sidebar-heatmap" class="sidebar-inner sidebar-inner-hidden">
+
+        <div class="sidebar-howto">
+          <p class="sidebar-howto-heading">How to use the Heatmap chart</p>
+          <ul class="sidebar-howto-list">
+            <li><b>Choose Metric and Unit:</b> Select a metric and toggle Total SF or Per kg. Row order updates to reflect the most impactful categories. Per kg view uses a diverging colour scale.</li>
+            <li><b>Choose Number of Categories:</b> Set how many categories to show using the top N dropdown (default 30).</li>
+            <li><b>Rank:</b> Annual rankings shown to the right of the heatmap (1 = highest impact).</li>
+            <li><b>Hover a cell</b> to read the week's rank, deviation from the annual mean, and annual contribution to total SF.</li>
+            <li><b>Event Overlay:</b> Use the dropdown to mark public holidays, school terms, or other events above the chart.</li>
+          </ul>
+        </div>
+
+        <p class="glossary-intro">Click a term to read its definition.</p>
+        <div class="glossary-section">
+
+          <div class="glossary-card" data-open="true">
+            <button class="glossary-header">Total SF (Sales Footprint)</button>
+            <div class="glossary-body">
+              <p>Total environmental impact per day from food and drink sales. Calculated by multiplying the per-product environmental impact value by the weight sold, summed across all products.</p>
+            </div>
+          </div>
+
+          <div class="glossary-card" data-open="false">
+            <button class="glossary-header">Per kg</button>
+            <div class="glossary-body">
+              <p>Average environmental impact per kilogram of food purchased. Shows basket composition independently of purchasing volume. Changes when the relative mix of products shifts toward higher or lower impact items.</p>
+            </div>
+          </div>
+
+          <div class="glossary-card" data-open="false">
+            <button class="glossary-header">GHGE: Greenhouse Gas Emissions</button>
+            <div class="glossary-body">
+              <p>Carbon impact of food and drink sales, expressed as kilograms of CO&#x2082;-equivalent per kilogram of product sold.</p>
+            </div>
+          </div>
+
+          <div class="glossary-card" data-open="false">
+            <button class="glossary-header">LU: Land Use</button>
+            <div class="glossary-body">
+              <p>Area of land required to produce the food sold, measured in square metres per year per kilogram of product.</p>
+            </div>
+          </div>
+
+          <div class="glossary-card" data-open="false">
+            <button class="glossary-header">WU: Water Use</button>
+            <div class="glossary-body">
+              <p>Freshwater consumed to produce the food sold, measured in litres per kilogram of product.</p>
+            </div>
+          </div>
+
+          <div class="glossary-card" data-open="false">
+            <button class="glossary-header">Composite Impact</button>
+            <div class="glossary-body">
+              <p>A normalised average of all three metrics scaled between 0 and 1. Surfaces periods where carbon, land, and water impacts were elevated or reduced together.</p>
+            </div>
+          </div>
+
+          <div class="glossary-card" data-open="false">
+            <button class="glossary-header">LCFS Category</button>
+            <div class="glossary-body">
+              <p>One of 65 food and drink groups following the Office for National Statistics Living Costs and Food Survey classification, further narrowed down to a set of 30.</p>
+            </div>
+          </div>
+
         </div>
       </div>
 
+      <!-- Footer: shown on all pages regardless of active tab -->
       <div class="sidebar-footer">
-        <p>FIO Food: LIDA, University of Leeds</p>
+        <p>FIO-FOOD, LIDA, University of Leeds</p>
         <p>UKRI/BBSRC BB/W018021/1</p>
       </div>
 
     </aside>
 
-    <!-- Right panel: scrollable, holds both tab content areas -->
+    <!-- RIGHT PANEL -->
+    <!-- Scrollable area. Three tab panels, only one visible at a time. -->
     <div class="right-panel">
 
-      <!-- Dashboard panel: charts -->
-      <div id="dashboard-panel" class="tab-panel tab-panel-hidden">
+      <!-- ABOUT PANEL -->
+      <!-- Default view. Two-column layout:
+           left = title + about + funding + controls + steps
+           right = metrics + timeline & heatmap chart instructions -->
+      <div id="about-panel" class="tab-panel">
+        <div class="about-two-col">
+
+          <!-- Left column -->
+          <div class="about-col about-col-left">
+
+            <div class="about-section">
+              <h1 class="about-title">
+                Sustainable Food Sales Explorer
+              </h1>
+              <p class="about-text">
+                This dashboard shows the environmental impact of food and drink
+                purchases across a calendar year (2022) from a major UK
+                supermarket retailer. Sales from loyalty card holders living in
+                Yorkshire and the Humber region were linked to product-level
+                environmental sustainability estimates to show how the carbon,
+                land use, and water use footprints of all purchases change over
+                time and across different food categories.
+              </p>
+            </div>
+
+            <div class="about-section">
+              <h2 class="about-heading">Funding Information</h2>
+              <p class="about-text">
+                The research leading to these results has received funding
+                through the Transforming the UK Food System (TUKFS) for
+                Healthy People and a Healthy Environment SPF Programme,
+                delivered by UKRI, in partnership with the Global Food
+                Security Programme, BBSRC, ESRC, MRC, NERC, Defra, DHSC,
+                OHID, Innovate UK and FSA (FIO-Food award: BB/W018021/1).
+              </p>
+            </div>
+
+          </div>
+
+          <!-- Right column -->
+          <div class="about-col about-col-right">
+
+            <div class="about-section">
+              <h2 class="about-heading">About the Metrics</h2>
+              <p class="about-text">
+                The dashboard allows picking from four different environmental
+                metrics:
+              </p>
+              <ul class="list-items">
+                <li><b>GHGE</b> = Greenhouse Gas Emissions (kg CO2-equivalent)</li>
+                <li><b>LU</b> = Land Use (agricultural land area [m&#178;] multiplied by length of time occupied [years])</li>
+                <li><b>WU</b> = Water Use (agricultural fresh water withdrawals in litres)</li>
+                <li>A <b>Composite Impact score</b>, calculated by scaling each of the above metrics between 0 and 1 and calculating the normalised average of the three scaled metrics. The Composite Impact score gives an indication of overall environmental impact, weighting GHGE, LU and WU equally.</li>
+              </ul>
+              <p class="about-text">
+                Environmental impact data were derived from Poore and
+                Nemechek's global averages for food and drink commodities
+                <a href="https://doi.org/10.1126/science.aaq0216">[1]</a>,
+                and were linked to products as described here
+                <a href="https://doi.org/10.31235/osf.io/rxf9j_v1">[2]</a>.
+                The system boundaries are from cradle to store gate.
+              </p>
+            </div>
+
+            <div class="about-section">
+              <h2 class="about-heading">How can this dashboard be used?</h2>
+              <p class="about-text">
+                The dashboard has two charts, which allow both a high-level
+                overview of environmental footprint trends across a full year,
+                as well as exploration of environmental footprints down to
+                individual food categories.
+              </p>
+              <ol class="list-items">
+                <li><b>TIMELINE CHART (Overall Seasonal Patterns tab):</b> Shows
+                  one smoothed trend line across the year per metric, rising when
+                  purchasing was more environmentally intensive. The chart can
+                  be configured as follows:
+                  <ul>
+                    <li><b>Choose Metric:</b> Select a metric (e.g. GHGE, LU etc.) using the dropdown at the top of the chart.</li>
+                    <li><b>Choose Unit:</b> Switch between Total SF and Per kg. Total SF tells us the total environmental impact from product sales, which depends on the types of products purchased, and the volumes in which they are purchased. Per kg footprints tells us about the mix or composition of products purchased, and whether this mix is more or less sustainable. This metric controls for the total volume of products purchased, which will vary across the year (e.g. increasing at Christmas).</li>
+                    <li><b>Choose Date Range:</b> Narrow the date range using From and To date pickers to zoom into any period. The y-axis rescales automatically. For the Composite metric the y-axis always starts from zero so Total SF and Per kg remain directly comparable.</li>
+                    <li><b>Explore Values:</b> Hover anywhere on the chart to snap to the nearest data point. The tooltip shows the smoothed value, the full-year average, and how far above or below that average the selected date was.</li>
+                    <li><b>Event Overlay:</b> Use the drop-down list to select different events to overlay on the graph (e.g. public holidays, school holidays, or key weather events).</li>
+                  </ul>
+                </li>
+                <p><br></p>
+                <li><b>HEATMAP CHART (Category-level Patterns tab):</b> Shows how
+                  the environmental impact of individual food categories varies
+                  across the year, revealing category-level seasonal trends.
+                  Each row is one food category. Each column is one week. The
+                  colour of a cell shows how that category's average daily
+                  footprint over the week compared to its own typical level
+                  for the year. Darker indicates the footprint is above average
+                  for that row. The scale is per row (i.e. category) so colour
+                  cannot be used to compare magnitude across rows.
+                  The chart can be configured as follows:
+                  <ul>
+                    <li><b>Choose Metric and Unit:</b> Select a metric using the dropdown. Use the Total SF or Per kg toggle to change what the colours represent. The row order updates to reflect the most impactful categories for the active metric and unit. In Per kg view the colour scheme changes to a diverging scale where the midpoint is the category's annual mean.</li>
+                    <li><b>Choose Number of Categories:</b> Set how many categories to show using the top N dropdown. The default is 30 categories.</li>
+                    <li><b>Explore Data:</b>
+                      <ul>
+                        <li><b>Rank:</b> Annual rankings for the selected environmental impact metric can be found to the right of the heatmap. The rankings tell you how the category's annual footprint compares to all other categories (1 = highest, 30 = lowest environmental impact).</li>
+                        <li><b>Annual mean SF:</b> This metric is found in the top right of the chart. It shows the mean daily sales footprint for the chosen environmental impact metric (e.g. GHGE) across all products sold.</li>
+                        <li><b>Annual mean per kg:</b> As above, but per kg, rather than total sales footprint.</li>
+                      </ul>
+                    </li>
+                    <li>Hover on any cell to read the week's footprint statistics:
+                      <ul>
+                        <li><b>Week's Rank:</b> tells you how the week's footprint ranks compared to all other categories for that week (1 = highest, 30 = lowest environmental impact).</li>
+                        <li><b>Deviation from the annual mean:</b> tells you how the week's footprint differs from the average footprint for that category across the year.</li>
+                        <li><b>Annual contribution to total SF:</b> this statistic only shows when Total SF is selected. It gives the percentage contribution for a given category to the total sales footprint across all products.</li>
+                      </ul>
+                    </li>
+                  </ul>
+                </li>
+              </ol>
+            </div>
+
+            <div class="about-section">
+              <h2 class="about-heading">Dashboard Controls</h2>
+              <ul class="list-items">
+                <li><b>Metric (Dropdown):</b> Switch between Carbon (GHGE), Land Use (LU), Water Use (WU), and Composite (Timeline Chart only).</li>
+                <li><b>Total Sales Footprint / Per-kilogram (Toggle):</b> Volume derived Sales Footprint vs. basket composition per-kg for each metric (with composite).</li>
+                <li><b>Date Range (Date pickers):</b> Select start and end dates for period individually (zoom into window).</li>
+                <li><b>Reset Date (Button):</b> Reset date period to go back to default (full date range in data, entire calendar year).</li>
+                <li><b>N categories (Dropdown):</b> Number of categories to show (Top-N categories ranked for environmental impact. Options include 10, 30, or 65 categories at a time. Heatmap chart only).</li>
+              </ul>
+            </div>
+
+            <div class="about-section">
+              <h2 class="about-heading">Suggested Steps to Get Started</h2>
+              <ol class="list-items">
+                <li>Select a metric from the dropdown above to update both charts (a reminder of the metric definitions can be found on the left-hand side).</li>
+                <li>Toggle between Total SF and Per kg to switch between Sales Footprint and Per-kg composition.</li>
+                <li>Use the From and To date pickers to narrow both charts to a period of interest.</li>
+                <li>Hover on any data point, markers or cell to read exact values.</li>
+                <li>Use the drop-down to select events of interest (e.g. public holidays).</li>
+                <li>Reset dates returns both charts to the full year view (no change to other inputs).</li>
+              </ol>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── TIMELINE PANEL ───────────────────────────────────────────── -->
+      <!-- Shown when 'Overall Seasonal Patterns' tab is active.
+           Chart is initialised lazily on first activation so the
+           container has a real width before createTrendChart() runs.
+           load-message is shown until initTrend() completes. -->
+      <div id="timeline-panel" class="tab-panel tab-panel-hidden">
         <div class="chart-panel">
           <p id="load-message">Loading dashboard&hellip;</p>
           <div class="chart-section">
@@ -121,6 +487,15 @@
             </div>
             <div id="trend-container"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- ─── HEATMAP PANEL ─────────────────────────────────────────────── -->
+      <!-- Shown when 'Category-level Patterns' tab is active.
+           Chart is initialised lazily on first activation, independently
+           of the timeline chart. -->
+      <div id="heatmap-panel" class="tab-panel tab-panel-hidden">
+        <div class="chart-panel">
           <div class="chart-section">
             <div class="chart-header">
               <span class="chart-label">Category breakdown</span>
@@ -130,133 +505,11 @@
         </div>
       </div>
 
-      <!-- About panel: text content -->
-      <div id="about-panel" class="tab-panel">
-        <div class="about-wrapper">
-
-          <div class="about-section">
-            <h1 class="about-title">
-              FIO Food Environmental Impact Seasonal Explorer (FIO-EISE)
-            </h1>
-            <p class="about-text">
-              This dashboard shows the environmental impact of food and drink purchases across a calendar year (2022) from a major UK supermarket retailer. Sales from loyalty card holders living in Yorkshire and the Humber region were linked to product-level environmental sustainability estimates to show how the carbon, land use, and water use footprints of all purchases change over time and across different food categories.
-            </p>
-          </div>
-
-          <div class="about-section">
-            <h2 class="about-heading">About the Metrics</h2>
-            <p class="about-text">
-              The dashboard allows picking from four different environmental metrics:
-            </p>
-            <ul class="list-items">
-              <li><b>GHGE</b> = Greenhouse Gas Emissions (kg CO2-equivalent)</li>
-              <li><b>LU</b> = Land Use (agricultural land area [m2]s multiplied by length of time occupied [years])</li>
-              <li><b>WU</b> = Water Use (agricultural fresh water withdrawals in litres)</li>
-              <li>A <b>'Composite Impact' score</b>, calculated by scaling each of the above metrics between 0 and 1, <br>and calculating the normalized average of the three scaled metrics.<br>The Composite Impact score gives an indication of overall environmental impact, weighting GHGE, LU and WU equally.
-            </ul>
-
-            <p class="about-text">
-              Environmental impact data were derived from Poore and Nemechek’s global averages for food and drink commodities <a href="https://doi.org/10.1126/science.aaq0216">[1]</a>, and were linked to products as described here <a href="https://doi.org/10.31235/osf.io/rxf9j_v1">[2]</a>. The system boundaries are from cradle to store gate.  
-            </p>
-          </div>
-
-          <div class="about-section">
-            <h2 class="about-heading">How can this dashboard be used?</h2>
-            <p class="about-text">
-              The dashboard has two charts, which allow both a high-level overview of environmental footprint trends across a full year, as well as exploration of environmental footprints down to individual food categories. 
-              <ol class="list-items">
-                <li><b>TIMELINE CHART:</b> Shows one smoothed trend line across the year per metric, rising when purchasing was more environmentally intensive. The line shows the 7-day smoothed environmental footprint across the selected period. A peak means purchasing was more intensive on those days. The chart can be configured as follows: 
-                <ul>
-                  <li><b>Choose Metric:</b> Select a metric (e.g. GHGE, LU etc.) using the dropdown at the top of the chart.   </li>
-                  <li><b>Choose Unit:</b> Switch between Total SF and Per kg. Total SF tells us the total environmental impact from product sales, which depends on the types of products purchased, and the volumes in which they are purchased. Per kg footprints tells us about the mix or composition of products purchased, and whether this mix is more or less sustainable. This metric controls for the total volume of products purchased, which will vary across the year (e.g. increasing at Christmas).</li>
-                  <li><b>Choose Date Range:</b> Narrow the date range using ‘From’ and ‘To’ date pickers to zoom into any period. The y-axis rescales automatically. For the Composite metric the y-axis always starts from zero so Total SF and Per kg remain directly comparable. </li>
-                  <li><b>Explore Values:</b> Hover anywhere on the chart to snap to the nearest data point. The tooltip shows the smoothed value, the full-year average, and how far above or below that average the selected date was.</li>
-                  <li><b>Event Overlay:</b> Use the drop-down list to select different events to overlay on the graph (e.g. public holidays, school holidays, or key weather events).</li>
-                </ul>
-              </li>
-              <p><br></p>
-              <li><b>HEATMAP CHART:</b> Shows how the environmental impact of individual food categories varies across the year, revealing category-level seasonal trends. 
-                
-              Each row is one food category. Each column is one week. The colour of a cell shows how that category's average daily footprint over the week compared to its own typical level for the year. Darker indicates the footprint is above average for that row. The scale is per row (i.e. category) so colour cannot be used to compare magnitude across rows (i.e. categories). 
-              
-              The chart can be configured as follows:</li>
-                <ul>
-                  <li><b>Choose Metric & Unit:</b> Select a metric (e.g. GHGE, LU etc.) using the dropdown at the top of the chart. Use the Total SF or Per kg toggle to change what the colours represent. The row (i.e. category) order updates to reflect the most impactful categories for the active metric and unit combination. In Per kg view the colour scheme changes to a diverging scale where the midpoint is the category's annual mean. </li>
-                  <li><b>Choose Number of Categories:</b> Set how many categories to show using the top N dropdown. The default is 30 categories.</li>
-                  <li>Explore Data:
-                    <ul>
-                      <li><b>Rank:</b> Annual rankings for the selected environmental impact metric can be found to the right of the heatmap. The rankings tell you how the categories annual footprint compares to all other categories (1 = highest, 30 = lowest environmental impact).</li>
-                      <li><b>Annual mean SF:</b> This metric is found in the top right of the chart. It shows the mean daily sales footprint for the chosen environmental impact metric (e.g. GHGE) across all products sold.</li>
-                      <li><b>Annual mean per kg:</b> As above, but per kg, rather than total sales footprint.
-                     </li>
-                    </ul></li>
-
-                  <li>Hover on any cell to read the week’s footprint statistics::
-                    <ul>
-                      <li><b>‘Week’s Rank’:</b> this tells you how the week’s footprint ranks to all other categories for that week (1 = highest, 30 = lowest environmental impact)</li>
-                      <li><b>'Deviation from the annual mean':</b> this tells you how the week’s footprint differs from the average footprint for that category across the year. For example, a deviation of +10% for the category ‘chocolate’ means that the daily footprint for chocolate was 10% higher that week, compared to the average daily footprint for chocolate across the year.</li>
-                      <li><b>'Annual contribution to total SF':</b> this statistic only shows when the ‘Total SF’ metric is selected. It gives the percentage contribution for a given category to the total sales footprint across all products. For example, a value of 10% for the category ‘pasta products’ would tells us that across the year, sales of products in this category contribute to 10% of the total annual sales footprint across all products. 
-                     </li>
-                    </ul></li>
-
-                    
-                    </ul>
-                  </li>
-                </ul>
-                </li>
-              </ol>
-            </p>
-          </div>
-
-          <div class="about-section">
-            <h2 class="about-heading">Dashboard Controls</h2>
-            <p>
-              <ul class="list-items">
-                <li>
-                  <b>Metric (Dropdown):</b> Switch between Carbon (GHGE), Land Use (LU), Water Use (WU), and Composite (Timeline Chart only)
-                </li>
-                <li>
-                  <b>Total Sales Footprint / Per-kilogram (Toggle):</b> Volume derived Sales Footprint vs. basket composition per-kg for each metric (with composite) 
-                </li>
-                <li>
-                  <b>Date Range (Date pickers):</b> Select start and end dates for period individually (zoom into window)
-                </li>
-                <li>
-                  <b>Reset Date (Button):</b> Reset date period to go back to default (full date range in data, entire calendar year)
-                </li>
-                <li>
-                  <b>N categories (Dropdown):</b> Number of categories to show (Top-N categories ranked for environmental impact. Options include choosing to show 10, 30, or 65 categories at a time, Heatmap Chart only)
-                </li>
-              </ul>
-            </p>
-          </div>
-
-          <div class="about-section">
-            <h2 class="about-heading">Suggested Steps to Get Started:</h2>
-            <ol class="list-items">
-              <li>Select a metric from the dropdown above to update both charts (a reminder of the metric definitions can be found on the left-hand side).</li>
-              <li>Toggle between Total SF and Per kg to switch between Sales Footprint and Per-kg composition.</li>
-              <li>Use the 'From' and 'To' date pickers to narrow both charts to a period of interest.</li>
-              <li>Hover on any data point, markers or cell to read exact values.</li>
-              <li>Use the drop-down to select events of interest (e.g. public holidays).</li>
-              <li>Reset dates returns both charts to the full year view (no change to other inputs).</li>
-            </ol>
-          </div>
-
-          <div class="about-section">
-            <h2 class="about-heading">Funding Information</h2>
-            <p class="about-text">
-              The research leading to these results has received funding through the Transforming the UK Food System (TUKFS) for Healthy People and a Healthy Environment SPF Programme, delivered by UKRI, in partnership with the Global Food Security Programme, BBSRC, ESRC, MRC, NERC, Defra, DHSC, OHID, Innovate UK and FSA (FIO-Food award: BB/W018021/1). 
-            </p>
-          </div>
-
-        </div>
-      </div>
-
     </div>
-
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+  <!-- Chart scripts loaded after DOM so containers exist at parse time.
+       D3 is already loaded in <head> -- no second load needed here. -->
   <script src="js/trend_chart_V3.js"></script>
   <script src="js/heatmap_V3.js"></script>
   <script src="js/dashboard_V3.js"></script>

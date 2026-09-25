@@ -1,883 +1,774 @@
-// trend_chart.js - TP-V2
-// Timeline chart for the FIO-EISE dashboard.
-// Receives 52-row weekly bin data from L1_rolling_updated.json.
-// Returns a DOM node. Call: createTrendChart(l1Data, { width }).
+/*
+- trend_chart_V3.js
+- Renders the environmental footprint timeline chart.
+- Reads 52-row weekly bin data from L1 data file.
+- Called by dashboard_V3.js as:
+- createTrendChart(l1Data, { width })
+- Returns a DOM node appended to #trend-container.
+ *
+- Section map:
+- 1a. Config: METRICS, EVENTS_BY_GROUP, LAYOUT constants
+- 1b. Parse: Date parsing, smoothed series, annual means
+- 1c. Helpers: axisFormatter, yFormatter, pctFormatter, statFmt
+- 1d. Controls: ctrlWrapper, topRow, ctrlRow, legend block
+- 1e. SVG shell: SVG, groups, axis labels, overlay, tooltip, footnote
+- 1f. Event markers: redrawEventMarkers() - uses hoisted xScale
+- 1g. Redraw: Full chart redraw on any state change
+- 1h. Resize: ResizeObserver - keeps chart inside container
+ */
 
-function createTrendChart(data, { width = 960 } = {}) {
 
-  // 1a: Config
+function createTrendChart(data, {width = 960} = {}) {
 
-  // All pixel dimensions and spacing values in one block.
-  // Change values here only
+
+  /*1a. CONFIG
+  All configuration constants live here. LAYOUT
+  controls pixel dimensions. METRICS defines columns, colours,
+  units and formatters for each environmental metric.
+  EVENTS_BY_GROUP defines event overlay markers by group key.
+  State variables (activeMKey etc.) track the current user
+  selection and drive redraw().
+
+  To change:
+  - Metric colours: find the metric key (GHGE, LU, WU,
+    composite) and update the colour value.
+  - Event dates: find the group key in EVENTS_BY_GROUP and
+    update the date strings. Format is YYYY-MM-DD.
+    Currently set to 2022 to match dummy data.
+  - Chart height: update LAYOUT.H. The SVG will resize.
+  - Margin: update LAYOUT.MARGIN. Increase left if y-axis
+    labels clip, increase top if event labels clip above.
+     */
+
   const LAYOUT = {
-    H               : 300,
-    MARGIN          : { top: 100, right: 60, bottom: 40, left: 88 },
-    PKG_PAD_FACTOR  : 0.5,   // y padding fraction for per-kg view
-    PKG_MIN_RANGE   : 1.5,    // min y span enforced for per-kg view
-    EVENT_TICK_Y1   : -20,    // top of event marker tick line
-    EVENT_TICK_Y2   : -8,     // bottom of event marker tick line
-    EVENT_LABEL_Y   : -22,    // rotated label anchor y position
-    DATE_LABEL_Y    : 44,     // px below grid for Date x-axis label
-    FOOTNOTE_SIZE   : "12px",
-    FOOTNOTE_MARGIN : "12px 0 8px 0",
+    H: 300,
+    MARGIN: {top: 110, right: 20, bottom: 64, left: 88},
+    PKG_PAD_FACTOR: 0.12,
+    PKG_MIN_RANGE: 1.5,
+    EVENT_TICK_Y1: -20,
+    EVENT_TICK_Y2: -8,
+    EVENT_LABEL_Y: -22,
+    DATE_LABEL_Y : 44,
+    FOOTNOTE_SIZE: '12px',
+    FOOTNOTE_MARGIN: '24px 0 8px 0',
   };
 
-  const { H, MARGIN } = LAYOUT;
-  const W = width - MARGIN.left - MARGIN.right;
+  // MIN_CHART_WIDTH: chart never renders narrower than this value.
+  // Below this viewport width horizontal scrolling kicks in.
+  const MIN_CHART_WIDTH = 720;
+
+  // H is a let so the ResizeObserver can update it proportionally
+  // with width. LAYOUT.H is the maximum value (full-width default).
+  let H = LAYOUT.H;
+  const {MARGIN} = LAYOUT;
+
+  // totalWidth and W are lets so the ResizeObserver in 1h can update them
+  let totalWidth = width;
+  let W = totalWidth - MARGIN.left - MARGIN.right;
 
   const METRICS = {
     composite: {
-      col       : "roll7_composite_norm",
-      pkg_col   : "roll7_composite_intensity_norm",
-      label     : "Composite Impact - Total Sales FP (scaled 0-1)",
-      pkg_label : "Composite Impact - Per-Kg (scaled 0-1)",
-      short     : "Composite Impact",
-      unit      : "(0-1 scale)",
-      pkg_unit  : "(0-1 scale)",
-      colour    : "#444444",
-      fmt       : d3.format(".3f"),
-      pkg_fmt   : d3.format(".3f"),
+      col: 'binavg_composite_norm',
+      pkg_col: 'binavg_composite_intensity_norm',
+      label: 'Composite Impact - Total Sales FP (scaled 0-1)',
+      pkg_label: 'Composite Impact - Per-Kg (scaled 0-1)',
+      short: 'Composite Impact',
+      unit: '(0-1 scale)',
+      pkg_unit: '(0-1 scale)',
+      colour: '#444444',
+      fmt: d3.format('.3f'),
+      pkg_fmt: d3.format('.3f'),
     },
     GHGE: {
-      col       : "roll7_GHGE_SF",
-      pkg_col   : "roll7_GHGE_perkg",
-      label     : "GHGE Sales Footprint (kg CO2-eq/day)",
-      pkg_label : "GHGE per kg sold (kg CO2-eq/kg)",
-      short     : "GHGE",
-      unit      : "kg CO2-eq/day",
-      pkg_unit  : "kg CO2-eq/kg",
-      colour    : "#2ca02c",
-      fmt       : null,
-      pkg_fmt   : null,
+      col: 'binavg_GHGE_SF',
+      pkg_col: 'binavg_GHGE_perkg',
+      label: 'GHGE Sales Footprint (kg CO\u2082-eq/day)',
+      pkg_label: 'GHGE per kg sold (kg CO\u2082-eq/kg)',
+      short: 'GHGE',
+      unit: 'kg CO\u2082-eq/day',
+      pkg_unit: 'kg CO\u2082-eq/kg',
+      colour: '#2ca02c',
+      fmt: null,
+      pkg_fmt: null,
     },
     LU: {
-      col       : "roll7_LU_SF",
-      pkg_col   : "roll7_LU_perkg",
-      label     : "Land Use Sales Footprint (m2yr/day)",
-      pkg_label : "Land Use per kg sold (m2yr/kg)",
-      short     : "Land Use",
-      unit      : "m2yr/day",
-      pkg_unit  : "m2yr/kg",
-      colour    : "#ff7f0e",
-      fmt       : null,
-      pkg_fmt   : null,
+      col: 'binavg_LU_SF',
+      pkg_col: 'binavg_LU_perkg',
+      label: 'Land Use Sales Footprint (m\u00b2\u00b7yr/day)',
+      pkg_label: 'Land Use per kg sold (m\u00b2\u00b7yr/kg)',
+      short: 'Land Use',
+      unit: 'm\u00b2\u00b7yr/day',
+      pkg_unit: 'm\u00b2\u00b7yr/kg',
+      colour: '#ff7f0e',
+      fmt: null,
+      pkg_fmt: null,
     },
     WU: {
-      col       : "roll7_WU_SF",
-      pkg_col   : "roll7_WU_perkg",
-      label     : "Water Use Sales Footprint (L/day)",
-      pkg_label : "Water Use per kg sold (L/kg)",
-      short     : "Water Use",
-      unit      : "L/day",
-      pkg_unit  : "L/kg",
-      colour    : "#1f77b4",
-      fmt       : null,
-      pkg_fmt   : null,
+      col: 'binavg_WU_SF',
+      pkg_col: 'binavg_WU_perkg',
+      label: 'Water Use Sales Footprint (L/day)',
+      pkg_label: 'Water Use per kg sold (L/kg)',
+      short: 'Water Use',
+      unit: 'L/day',
+      pkg_unit: 'L/kg',
+      colour: '#1f77b4',
+      fmt: null,
+      pkg_fmt: null,
     },
   };
 
   const METRIC_OPTIONS = [
-    { key: "GHGE",      display: "GHGE (Greenhouse Gas Emissions)" },
-    { key: "LU",        display: "LU (Land Use)"                   },
-    { key: "WU",        display: "WU (Water Use)"                  },
-    { key: "composite", display: "Composite Impact - Overall"      },
+    {key: 'GHGE', display: 'GHGE (Greenhouse Gas Emissions)'},
+    {key: 'LU', display: 'LU (Land Use)'},
+    {key: 'WU', display: 'WU (Water Use)'},
+    {key: 'composite', display: 'Composite Impact - Overall'},
   ];
 
+  // update dates to real data once ready.
   const EVENTS_BY_GROUP = {
     public_holidays: [
-      // { date: "2023-01-03", label: "New Year's Day BH"  },
-      // { date: "2023-04-15", label: "Good Friday BH"     },
-      { date: "2023-04-18", label: "Easter Monday BH"   },
-      { date: "2023-05-02", label: "Early May BH"       },
-      // { date: "2023-06-02", label: "Spring BH"          },
-      { date: "2023-06-03", label: "Jubilee BH"         },
-      { date: "2023-08-29", label: "Summer BH"          },
-      { date: "2023-09-19", label: "State Funeral BH"   },
-      { date: "2023-12-26", label: "Boxing Day BH"      },
-      // { date: "2023-12-27", label: "Christmas Day BH"   },
+      {date: '2022-04-18', label: 'Easter Monday BH'},
+      {date: '2022-05-02', label: 'Early May BH'},
+      {date: '2022-06-02', label: 'Spring/Jubilee BH'},
+      {date: '2022-08-29', label: 'Summer BH'},
+      {date: '2022-09-19', label: "Queen Funeral BH"},
+      {date: '2022-12-27', label: 'Christmas Day BH'},
     ],
     cultural_events: [
-      { date: "2023-03-27", label: "Mother's Day"       },
-      { date: "2023-04-02", label: "Ramadan Start"      },
-      { date: "2023-04-15", label: "Good Friday"        },
-      // { date: "2023-04-18", label: "Easter Monday"      },
-      { date: "2023-05-02", label: "Ramadan End"        },
-      { date: "2023-06-19", label: "Father's Day"       },
-      { date: "2023-10-24", label: "Diwali"             },
-      { date: "2023-10-31", label: "Halloween"          },
-      { date: "2023-12-25", label: "Christmas"          },
-      { date: "2023-12-31", label: "New Year's Eve"          },
+      {date: '2022-03-27', label: "Mother's Day"},
+      {date: '2022-04-02', label: 'Ramadan S'},
+      {date: '2022-04-15', label: 'Good Friday'},
+      {date: '2022-05-02', label: 'Ramadan E'},
+      {date: '2022-06-19', label: "Father's Day"},
+      {date: '2022-10-24', label: 'Diwali'},
+      {date: '2022-10-31', label: 'Halloween'},
+      {date: '2022-12-25', label: 'Christmas'},
+      {date: '2022-12-31', label: "New Year's Eve"},
     ],
     school_calendar: [
-      { date: "2023-02-19", label: "Spring Half Term S"             },
-      { date: "2023-02-27", label: "Spring Half Term E"             },
-      { date: "2023-04-04", label: "Easter Holidays S"             },
-      { date: "2023-04-14", label: "Easter Holidays E"             },
-      { date: "2023-05-28", label: "Summer Half Term S"             },
-      { date: "2023-06-05", label: "Summer Half Term E"             },
-      { date: "2023-07-23", label: "Summer Holidays S"             },
-      { date: "2023-09-04", label: "Summer Holidays E"             },
-      { date: "2023-10-22", label: "Autumn Half Term S"             },
-      { date: "2023-10-30", label: "Autumn Half Term E"             },
-      { date: "2023-12-17", label: "Christmas Holidays S"             },
-      { date: "2023-12-30", label: "Christmas Holidays E"             },
+      {date: "2022-02-19", label: "Spring Half Term S"},
+      {date: "2022-02-27", label: "Spring Half Term E"},
+      {date: "2022-04-04", label: "Easter Holidays S"},
+      {date: "2022-04-14", label: "Easter Holidays E"},
+      {date: "2022-05-28", label: "Summer Half Term S"},
+      {date: "2022-06-05", label: "Summer Half Term E"},
+      {date: "2022-07-23", label: "Summer Holidays S"},
+      {date: "2022-09-04", label: "Summer Holidays E"},
+      {date: "2022-10-22", label: "Autumn Half Term S"},
+      {date: "2022-10-30", label: "Autumn Half Term E"},
+      {date: "2022-12-17", label: "Christmas Holidays S"},
+      {date: "2022-12-30", label: "Christmas Holidays E"},
     ],
     weather_events: [
-      { date: "2023-06-16", label: "HW (3 days)"        },
-      { date: "2023-07-18", label: "HW (3 days)"        },
-      { date: "2023-08-12", label: "HW (7 days)"        },
+      {date: '2022-06-16', label: 'June HW (3 days)'},
+      {date: '2022-07-18', label: 'July HW (4 days)'},
+      {date: '2022-08-12', label: 'August HW (5 days)'},
     ],
     sporting_events: [
-      // { date: "2023-02-05", label: "Six Nations S"               },
-      { date: "2023-03-19", label: "Six Nations E"               },
-      // { date: "2023-07-06", label: "UEFA Women's Euro S"               },
-      { date: "2023-07-31", label: "UEFA Women's Euro E"               },
-      // { date: "2023-07-28", label: "Commonwealth Games S"               },
-      { date: "2023-08-08", label: "CW Games E"               },
-      // { date: "2023-11-20", label: "FIFA World Cup S"               },
-      { date: "2023-12-18", label: "FIFA World Cup E"               },
+      // {date: "2022-02-05", label: "Six Nations S"},
+      {date: "2022-03-19", label: "Six Nations E"},
+      // {date: "2022-07-06", label: "UEFA Women's Euro S"},
+      {date: "2022-07-31", label: "UEFA WE E"},
+      // {date: "2022-07-28", label: "Commonwealth Games S"},
+      {date: "2022-08-08", label: "CG Games E"},
+      // {date: "2022-11-20", label: "FIFA World Cup S"},
+      {date: "2022-12-18", label: "FIFA WC E"},
     ],
   };
 
   const EVENT_FOOTNOTES = {
-    public_holidays : "BH = Bank Holiday",
-    cultural_events : "",
-    school_calendar : "SH = School Holidays  S = Period start  E = Period end",
-    weather_events  : "HW = Heatwave  number in brackets = duration in days",
-    sporting_events : "E = Period end  CW = Commonwealth",
+    public_holidays : 'BH = Bank Holiday',
+    cultural_events : 'S = Period start  E = Period end',
+    school_calendar : 'SH = School Holidays  S = Period start  E = Period end',
+    weather_events  : 'HW = Heatwave number in brackets = duration in days',
+    sporting_events : 'CG = Commonwealth Games  ' +
+                      '  WC = World Cup  WE = UEFA Women\'s Euro  ' +
+                      'S = Period start  E = Period end',
   };
 
   const EVENT_GROUP_OPTIONS = [
-    { key: "public_holidays", display: "Public Holidays" },
-    { key: "cultural_events", display: "Cultural Events" },
-    { key: "school_calendar", display: "School Calendar" },
-    { key: "weather_events",  display: "Weather Events"  },
-    { key: "sporting_events", display: "Sporting Events" },
+    { key: 'public_holidays', display: 'Public Holidays' },
+    { key: 'cultural_events', display: 'Cultural Events' },
+    { key: 'school_calendar', display: 'School Calendar' },
+    { key: 'weather_events',  display: 'Weather Events'  },
+    { key: 'sporting_events', display: 'Sporting Events' },
   ];
 
-  // Chart state
-  let activeMKey       = "GHGE";
+  // Chart state variables - changed by control interactions
+  let activeMKey       = 'GHGE';
   let activePkg        = false;
-  let activeEventGroup = "public_holidays";
-  let xScale           = null;   // hoisted for redrawEventMarkers()
+  let activeEventGroup = 'public_holidays';
+  let xScale           = null; // hoisted: redrawEventMarkers() reads it
 
 
-  // 1b: Parse 
-  if (!data.length || typeof data[0].week_start !== "string") {
-    console.error("TP-V2: week_start field missing or not a string.");
-    return Object.assign(document.createElement("div"), {
-      textContent: "Chart failed to load - check console for details."
-    });
+  /* 1b. PARSE
+  Converts week_start strings to Date objects and
+  builds smoothed series arrays from the pre-computed JSON
+  columns. Annual means are computed once from the full 52-bin
+  series and used in the tooltip percentage deviation display.
+
+  To change:
+  - If the JSON column name for week_start changes, update the
+    String(d.week_start) reference in the forEach below.
+  - Column names for each metric are in METRICS above.
+    Do not change them here - change them in METRICS only.
+  */
+
+  if (!data.length || typeof data[0].week_start !== 'string') {
+    console.error('trend_chart_V3: week_start field missing or not a string');
+    const errNode = document.createElement('div');
+    errNode.style.cssText = 'font-size:13px;color:#c00;padding:12px';
+    errNode.textContent   = 'Chart data error - check console for details.';
+    return errNode;
   }
 
-  const parseDate = d3.timeParse("%Y-%m-%d");
-  const fmtDate   = d3.timeFormat("%d %b %Y");
-  const fmtInput  = d3.timeFormat("%Y-%m-%d");
+  const parseDate = d3.timeParse('%d/%m/%Y');
+  const parseEventDate = d3.timeParse('%Y-%m-%d')
+  const fmtDate   = d3.timeFormat('%d %b %Y');
+  const fmtInput  = d3.timeFormat('%Y-%m-%d');
 
-  // Parse week_start into d.date for all downstream logic
-  data.forEach(d => {
+  data.forEach(function (d) {
     d.date = parseDate(String(d.week_start).trim());
   });
 
-  // Build smoothed series from pre-computed weekly bin columns
   function buildSmoothedFromCol(rows, col) {
     return rows
-      .filter(d => d.date != null && d[col] != null && !isNaN(d[col]))
-      .map(d => ({ date: d.date, value: +d[col] }));
+      .filter(function (d) {
+        return d.date != null && d[col] != null && !isNaN(d[col]);
+      })
+      .map(function (d) { return { date: d.date, value: +d[col] }; });
   }
 
   const smoothed = {
-    composite : buildSmoothedFromCol(data, "roll7_composite_norm"),
-    GHGE      : buildSmoothedFromCol(data, "roll7_GHGE_SF"),
-    LU        : buildSmoothedFromCol(data, "roll7_LU_SF"),
-    WU        : buildSmoothedFromCol(data, "roll7_WU_SF"),
+    composite : buildSmoothedFromCol(data, 'binavg_composite_norm'),
+    GHGE      : buildSmoothedFromCol(data, 'binavg_GHGE_SF'),
+    LU        : buildSmoothedFromCol(data, 'binavg_LU_SF'),
+    WU        : buildSmoothedFromCol(data, 'binavg_WU_SF'),
   };
 
   const smoothedPkg = {
-    composite : buildSmoothedFromCol(data, "roll7_composite_intensity_norm"),
-    GHGE      : buildSmoothedFromCol(data, "roll7_GHGE_perkg"),
-    LU        : buildSmoothedFromCol(data, "roll7_LU_perkg"),
-    WU        : buildSmoothedFromCol(data, "roll7_WU_perkg"),
+    composite : buildSmoothedFromCol(data, 'binavg_composite_intensity_norm'),
+    GHGE      : buildSmoothedFromCol(data, 'binavg_GHGE_perkg'),
+    LU        : buildSmoothedFromCol(data, 'binavg_LU_perkg'),
+    WU        : buildSmoothedFromCol(data, 'binavg_WU_perkg'),
   };
 
-  // Annual means from full 52-bin series - used in tooltip % deviation
   const annualMeans    = {};
   const annualMeansPkg = {};
-  for (const m of Object.keys(METRICS)) {
+  Object.keys(METRICS).forEach(function (m) {
     annualMeans[m]    = smoothed[m].length
-      ? d3.mean(smoothed[m],    d => d.value) : 0;
+      ? d3.mean(smoothed[m],    function (d) { return d.value; }) : 0;
     annualMeansPkg[m] = smoothedPkg[m].length
-      ? d3.mean(smoothedPkg[m], d => d.value) : 0;
-  }
+      ? d3.mean(smoothedPkg[m], function (d) { return d.value; }) : 0;
+  });
 
-  console.log("TP-V2 smoothed series (52 weekly bins):");
-  for (const m of Object.keys(METRICS)) {
-    console.log(`  ${m}: n=${smoothed[m].length}`);
-  }
+  const dateMinStr = fmtInput(d3.min(data, function (d) { return d.date; }));
+  const dateMaxStr = fmtInput(d3.max(data, function (d) { return d.date; }));
+    console.log(
+    'L1 rows:', data.length,
+    '| first week_start:', data[0] && data[0].week_start,
+    '| GHGE SF sample:', data[0] && data[0].binavg_GHGE_SF,
+    '| smoothed GHGE points:', smoothed.GHGE.length
+  );
 
-  const dateMinStr = fmtInput(d3.min(data, d => d.date));
-  const dateMaxStr = fmtInput(d3.max(data, d => d.date));
 
+  /*1c. HELPERS
+  axisFormatter provides short SI labels for y-axis
+  ticks (e.g. "700K", "1.0M"). yFormatter spells out "million"
+  for tooltip values to avoid the d3 SI rounding boundary where
+  999,500 rounds to "1.0M". pctFormatter adds sign prefix.
+  statFmt is used in the legend block for annual mean display.
 
-  // 1c: Helpers 
+  To change:
+  - Number of decimal places: edit the d3.format strings.
+  - Threshold for "million" vs "K": change the 1e6 and 1e3
+    comparisons in yFormatter.
+  */
 
-  // Short SI labels for y-axis ticks - K and M only.
-  // Does not spell out million to keep tick labels compact.
   function axisFormatter(v) {
     const abs = Math.abs(v);
-    if (abs === 0)    return "0";
-    if (abs >= 1e9)   return d3.format(".1s")(v).replace("G", "B");
-    if (abs >= 1e6)   return d3.format(".2s")(v);
-    if (abs >= 1e3)   return d3.format(".2s")(v).replace("k", "K");
-    if (abs < 10)     return d3.format(".2f")(v);
-    return d3.format(".1f")(v);
+    if (abs === 0)  return '0';
+    if (abs >= 1e9) return d3.format('.1s')(v).replace('G', 'B');
+    if (abs >= 1e6) return d3.format('.2s')(v);
+    if (abs >= 1e3) return d3.format('.2s')(v).replace('k', 'K');
+    if (abs < 10)   return d3.format('.2f')(v);
+    return d3.format('.1f')(v);
   }
 
-  // Spelled-out formatter for tooltip values.
-  // Uses explicit math at each threshold to avoid d3 SI rounding
-  // that shows "1.0M" for values just below 1e6 (the M-vs-million bug).
   function yFormatter(v, cfg) {
     const fmtFn = activePkg ? cfg.pkg_fmt : cfg.fmt;
     if (fmtFn) return fmtFn(v);
     const abs = Math.abs(v);
-    if (abs >= 1e9) return d3.format(".2f")(v / 1e9) + " billion";
-    if (abs >= 1e6) return d3.format(".2f")(v / 1e6) + " million";
-    if (abs >= 1e3) return d3.format(".0f")(v / 1e3) + "K";
-    if (abs < 10)   return d3.format(".2f")(v);
-    return d3.format(".1f")(v);
-  }
-
-  // Compact formatter for the annual mean reference values in the legend block.
-  // Separate from yFormatter so SF and per-kg can always use their own format.
-  function statFmt(v) {
-    if (v == null || isNaN(v)) return "--";
-    const abs = Math.abs(v);
-    if (abs >= 1e6) return d3.format(".2f")(v / 1e6) + " million";
-    if (abs >= 1e3) return d3.format(".0f")(v / 1e3) + "K";
-    if (abs >= 10)  return d3.format(".1f")(v);
-    return d3.format(".2f")(v);
+    if (abs >= 1e9) return d3.format('.2f')(v / 1e9) + ' billion';
+    if (abs >= 1e6) return d3.format('.2f')(v / 1e6) + ' million';
+    if (abs >= 1e3) return d3.format('.0f')(v / 1e3) + 'K';
+    if (abs < 10)   return d3.format('.2f')(v);
+    return d3.format('.1f')(v);
   }
 
   function pctFormatter(v) {
-    if (v == null || isNaN(v)) return "--";
-    return (v >= 0 ? "+" : "") + d3.format(".1f")(v) + "%";
+    if (v == null || isNaN(v)) return '-';
+    return (v >= 0 ? '+' : '') + d3.format('.1f')(v) + '%';
+  }
+
+  function statFmt(v) {
+    if (v == null || isNaN(v)) return '-';
+    const abs = Math.abs(v);
+    if (abs >= 1e6) return d3.format('.2f')(v / 1e6) + ' million';
+    if (abs >= 1e3) return d3.format('.0f')(v / 1e3) + 'K';
+    if (abs >= 10)  return d3.format('.1f')(v);
+    return d3.format('.2f')(v);
   }
 
 
-  // 1d: Controls 
-  const container = d3.create("div")
-    .style("font-family", "sans-serif")
-    .style("position", "relative");
+  /* 1d. CONTROLS
+  Builds all HTML control elements inside
+  ctrlWrapper using D3 append calls. ctrlWrapper uses
+  position: relative so the absolute-positioned legend block
+  can be anchored to its top-right corner without affecting
+  the flex row layout of topRow and ctrlRow.
+  topRow: metric dropdown + per-kg toggle.
+  ctrlRow: event overlay + date pickers + reset.
 
-  container.append("div")
-    .style("font-size", "20px")
-    .style("font-weight", "700")
-    .style("color", "#222")
-    .style("margin-bottom", "6px")
-    .text("Timeline of Environmental Impact from Food and Drink Sales");
+  To change:
+  - Metric dropdown options: edit METRIC_OPTIONS in 1a.
+  - Event group options: edit EVENT_GROUP_OPTIONS in 1a.
+  - Control font size: change the font-size style calls below.
+  */
 
-  // Static chart context - always visible regardless of active state
-  container.append("div")
-    .style("font-size", "14px")
-    .style("color", "#666")
-    .style("line-height", "1.6")
-    .style("margin-top", "16px")
-    .style("margin-bottom", "30px")
-    .style("max-width", "100%")
+  const container = d3.create('div')
+    .style('font-family', 'sans-serif')
+    .style('position', 'relative');
+
+  // Static chart heading
+  container.append('div')
+    .style('font-size', '20px')
+    .style('font-weight', '700')
+    .style('color', '#222')
+    .style('margin-bottom', '6px')
+    .text('Timeline of Environmental Impact from Food and Drink Sales');
+
+  // Static description - does not change with controls
+  container.append('div')
+    .style('font-size', '12px')
+    .style('color', '#777')
+    .style('line-height', '1.6')
+    .style('margin-bottom', '14px')
     .text(
-      "This chart can be used to explore the seasonal variation in " +
-      "environmental impacts from food and drink sales for total sales " +
-      "footprints (SF) and for per-kg sales footprints (SF). " +
-      "Please visit the 'About this tool' page to learn more about these " +
-      "footprints and how the chart can be configured."
+      'Shows one smoothed trend line across the year per metric, ' +
+      'rising when purchasing was more environmentally intensive. ' +
+      "Check 'How to' and 'Definitions'."
     );
 
-  // Dynamic metric state label - colour and text updated in redraw()
-  const titleDiv = container.append("div")
-    .style("font-size", "13px")
-    .style("font-weight", "600")
-    .style("margin-bottom", "2px");
+  // position: relative anchors the absolute legend block on wide screens.
+  // display: flex with column direction enforces visual stack order:
+  //   topRow (wrapping controls) -> legendBlock -> ctrlRow
+  // When legendBlock switches to position: relative on narrow screens it
+  // re-enters flow between topRow and ctrlRow in the correct position.
+  const ctrlWrapper = container.append('div')
+    .style('position', 'relative')
+    .style('display', 'flex')
+    .style('flex-direction', 'column');
 
-  // // Dynamic subtitle - updated in redraw()
-  // const subtitleDiv = container.append("div")
-  //   .style("font-size", "11px")
-  //   .style("color", "#999")
-  //   .style("margin-bottom", "10px");
+  // flex-wrap: wrap allows metric dropdown and per-kg pill to break onto
+  // a second line when there is not enough room side by side.
+  // padding-right reserves space for the absolute legend block on wide
+  // screens. applyLegendLayout() sets it to 0 on narrow screens when
+  // the legend drops into normal flow below the controls.
+  const topRow = ctrlWrapper.append('div')
+    .style('display', 'flex')
+    .style('align-items', 'center')
+    .style('gap', '10px')
+    .style('flex-wrap', 'wrap')
+    .style('margin-bottom', '8px')
+    .style('padding-right', '240px');
 
-  // Dynamic subtitle - updated in redraw()
-  const subtitleDiv = container.append("div")
-    .style("font-size", "11px")
-    .style("color", "#999")
-    .style("margin-bottom", "6px");
-
-  // Legend: coloured line swatch + metric and view label
-  // Updates on every redraw to reflect active metric and toggle state
-  // const legendDiv = container.append("div")
-  //   .style("display", "flex")
-  //   .style("align-items", "center")
-  //   .style("gap", "8px")
-  //   .style("margin-bottom", "10px");
-
-  
-  const legendDiv = container.append("div")
-    .style("display", "flex")
-    .style("gap", "4px")
-    .style("position", "absolute")
-    .style("flex-direction", "row")
-    .style("align-items", "flex-start")
-    .style("top", MARGIN.top + 8 + "px")
-    // .style("right", MARGIN.right + 8 + "px")
-    .style("right", "0")    
-    .style("background", "rgba(255,255,255,0.85)")
-    .style("padding", "3px 3px")
-    .style("border-radius", "4px")
-    .style("pointer-events", "none");
-
-  const legendSwatch = legendDiv.append("svg")
-    .attr("width", "32")
-    .attr("height", "10");
-    // .style("flex-shrink", "0");
-
-  legendSwatch.append("line")
-    .attr("x1", "0").attr("y1", "5")
-    .attr("x2", "32").attr("y2", "5")
-    .attr("stroke-width", "2.5")
-    .attr("stroke-linecap", "round")
-    .attr("class", "legend-line");
-
-  const legendLabel = legendDiv.append("span")
-    .style("font-size", "12px")
-    .style("color", "#555");
-
-//   // Event row (top): event overlay dropdown + per-kg toggle
-//   const eventRow = container.append("div")
-//     .style("display", "flex")
-//     .style("align-items", "center")
-//     .style("gap", "10px")
-//     .style("flex-wrap", "wrap")
-//     .style("margin-bottom", "8px");
-
-//   eventRow.append("span")
-//     .style("font-size", "12px")
-//     .style("color", "#666")
-//     .text("Event overlay:");
-
-//   const eventGroupSelect = eventRow.append("select")
-//     .style("font-size", "12px").style("padding", "4px 8px")
-//     .style("border-radius", "4px").style("border", "1px solid #ccc")
-//     .style("background", "white").style("cursor", "pointer")
-//     .on("change", function() {
-//       activeEventGroup = d3.select(this).property("value");
-//       if (xScale) redrawEventMarkers();
-//     });
-
-//   EVENT_GROUP_OPTIONS.forEach(({ key, display }) => {
-//     eventGroupSelect.append("option")
-//       .attr("value", key)
-//       .property("selected", key === activeEventGroup)
-//       .text(display);
-//   });
-
-//   // Separator between event select and per-kg pill
-//   eventRow.append("div")
-//     .style("width", "1px").style("height", "18px")
-//     .style("background", "#ddd").style("margin", "0 4px");
-
-//   // Per-kg pill in the event row (top row)
-//   const pkgPill = eventRow.append("div")
-//     .style("display", "flex")
-//     .style("border", "1px solid #ccc")
-//     .style("border-radius", "4px")
-//     .style("overflow", "hidden");
-
-//   const btnTotal = pkgPill.append("button")
-//     .text("Total SF")
-//     .style("font-size", "12px").style("padding", "4px 10px")
-//     .style("border", "none").style("cursor", "pointer")
-//     .style("transition", "background 0.15s, color 0.15s");
-
-//   const btnPkg = pkgPill.append("button")
-//     .text("Per kg")
-//     .style("font-size", "12px").style("padding", "4px 10px")
-//     .style("border", "none").style("border-left", "1px solid #ccc")
-//     .style("cursor", "pointer")
-//     .style("transition", "background 0.15s, color 0.15s");
-
-//   function syncPkgToggle() {
-//     btnTotal.style("background", !activePkg ? "#555" : "#fff")
-//             .style("color",      !activePkg ? "#fff" : "#555");
-//     btnPkg  .style("background",  activePkg ? "#555" : "#fff")
-//             .style("color",       activePkg ? "#fff" : "#555");
-//   }
-
-//   btnTotal.on("click", function() {
-//     if (activePkg) { activePkg = false; syncPkgToggle(); redraw(); }
-//   });
-//   btnPkg.on("click", function() {
-//     if (!activePkg) { activePkg = true; syncPkgToggle(); redraw(); }
-//   });
-//   syncPkgToggle();
-
-//   // Control row (bottom): metric + dates + reset
-//   const ctrlRow = container.append("div")
-//     .style("display", "flex")
-//     .style("align-items", "center")
-//     .style("gap", "10px")
-//     .style("flex-wrap", "wrap")
-//     .style("margin-bottom", "12px");
-
-//   const metricSelect = ctrlRow.append("select")
-//     .style("font-size", "12px").style("padding", "4px 8px")
-//     .style("border-radius", "4px").style("border", "1px solid #ccc")
-//     .style("background", "white").style("cursor", "pointer")
-//     .on("change", function() {
-//       activeMKey = d3.select(this).property("value");
-//       redraw();
-//     });
-
-//   METRIC_OPTIONS.forEach(({ key, display }) => {
-//     metricSelect.append("option")
-//       .attr("value", key)
-//       .property("selected", key === activeMKey)
-//       .text(display);
-//   });
-
-//   ctrlRow.append("div")
-//     .style("width", "1px").style("height", "18px")
-//     .style("background", "#ddd").style("margin", "0 2px");
-
-//   ctrlRow.append("span")
-//     .style("font-size", "12px").style("color", "#666")
-//     .text("From:");
-
-  // // Top row: metric dropdown + per-kg toggle
-  // const topRow = container.append("div")
-  //   .style("display", "flex")
-  //   .style("align-items", "center")
-  //   .style("gap", "10px")
-  //   .style("flex-wrap", "wrap")
-  //   .style("margin-bottom", "8px");
-
-  // ctrlWrapper: bounds absolute legend positioning without affecting row layout
-  const ctrlWrapper = container.append("div")
-    .style("position", "relative");
-
-  // Top row: nowrap prevents a third row forming
-  // padding-right reserves space so content never slides under the legend
-  const topRow = ctrlWrapper.append("div")
-    .style("display", "flex")
-    .style("align-items", "center")
-    .style("gap", "10px")
-    .style("flex-wrap", "nowrap")
-    .style("margin-bottom", "8px")
-    // .style("padding-right", "240px");
-
-  const metricSelect = topRow.append("select")
-    .style("font-size", "12px").style("padding", "4px 8px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("background", "white").style("cursor", "pointer")
-    .on("change", function() {
-      activeMKey = d3.select(this).property("value");
+  const metricSelect = topRow.append('select')
+    .style('font-size', '12px').style('padding', '4px 8px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .style('background', 'white').style('cursor', 'pointer')
+    .on('change', function () {
+      activeMKey = d3.select(this).property('value');
       redraw();
     });
 
-  METRIC_OPTIONS.forEach(({ key, display }) => {
-    metricSelect.append("option")
-      .attr("value", key)
-      .property("selected", key === activeMKey)
-      .text(display);
+  METRIC_OPTIONS.forEach(function (opt) {
+    metricSelect.append('option')
+      .attr('value', opt.key)
+      .property('selected', opt.key === activeMKey)
+      .text(opt.display);
   });
 
-  topRow.append("div")
-    .style("width", "1px").style("height", "18px")
-    .style("background", "#ddd").style("margin", "0 4px");
+  topRow.append('div')
+    .style('width', '1px').style('height', '18px')
+    .style('background', '#ddd').style('margin', '0 4px');
 
-  // Per-kg pill in top row alongside metric dropdown
-  const pkgPill = topRow.append("div")
-    .style("display", "flex")
-    .style("border", "1px solid #ccc")
-    .style("border-radius", "4px")
-    .style("overflow", "hidden");
+  // Per-kg toggle pill
+  const pkgPill = topRow.append('div')
+    .style('display', 'flex')
+    .style('border', '1px solid #ccc')
+    .style('border-radius', '4px')
+    .style('overflow', 'hidden');
 
-  const btnTotal = pkgPill.append("button")
-    .text("Total SF")
-    .style("font-size", "12px").style("padding", "4px 10px")
-    .style("border", "none").style("cursor", "pointer")
-    .style("transition", "background 0.15s, color 0.15s");
+  const btnTotal = pkgPill.append('button')
+    .text('Total SF')
+    .style('font-size', '12px').style('padding', '4px 10px')
+    .style('border', 'none').style('cursor', 'pointer')
+    .style('font-family', 'inherit')
+    .style('transition', 'background 0.15s, color 0.15s');
 
-  const btnPkg = pkgPill.append("button")
-    .text("Per kg")
-    .style("font-size", "12px").style("padding", "4px 10px")
-    .style("border", "none").style("border-left", "1px solid #ccc")
-    .style("cursor", "pointer")
-    .style("transition", "background 0.15s, color 0.15s");
+  const btnPkg = pkgPill.append('button')
+    .text('Per kg')
+    .style('font-size', '12px').style('padding', '4px 10px')
+    .style('border', 'none').style('border-left', '1px solid #ccc')
+    .style('cursor', 'pointer').style('font-family', 'inherit')
+    .style('transition', 'background 0.15s, color 0.15s');
 
   function syncPkgToggle() {
-    btnTotal.style("background", !activePkg ? "#555" : "#fff")
-            .style("color",      !activePkg ? "#fff" : "#555");
-    btnPkg  .style("background",  activePkg ? "#555" : "#fff")
-            .style("color",       activePkg ? "#fff" : "#555");
+    btnTotal
+      .style('background', !activePkg ? '#f5f1fe' : '#fff')
+      .style('color',      !activePkg ? '#111' : '#555');
+    btnPkg
+      .style('background',  activePkg ? '#f5f1fe' : '#fff')
+      .style('color',       activePkg ? '#111' : '#555');
   }
 
-  btnTotal.on("click", function() {
+  btnTotal.on('click', function () {
     if (activePkg) { activePkg = false; syncPkgToggle(); redraw(); }
   });
-  btnPkg.on("click", function() {
+  btnPkg.on('click', function () {
     if (!activePkg) { activePkg = true; syncPkgToggle(); redraw(); }
   });
   syncPkgToggle();
 
-  // Bottom row: event overlay dropdown + date pickers + reset
-  const ctrlRow = ctrlWrapper.append("div").style("margin-bottom", "12px")
-    .style("max-width", "75%")
+  // Legend block: absolute top-right of ctrlWrapper
+  // z-index 5 keeps it above rows
+  const legendBlock = ctrlWrapper.append('div')
+    .style('position', 'absolute')
+    .style('top', '0').style('right', '0')
+    .style('z-index', '5')
+    .style('display', 'flex')
+    .style('flex-direction', 'column')
+    .style('align-items', 'flex-end')
+    .style('gap', '3px')
+    .style('padding', '4px 8px')
+    .style('background', 'rgba(255,255,255,0.92)')
+    .style('border-radius', '4px');
 
-  // // Bottom row: event overlay dropdown + date pickers + reset
-  // const ctrlRow = container.append("div")
-  //   .style("display", "flex")
-  //   .style("align-items", "center")
-  //   .style("gap", "10px")
-  //   .style("flex-wrap", "wrap")
-  //   .style("margin-bottom", "12px");
+  const swatchRow = legendBlock.append('div')
+    .style('display', 'flex').style('align-items', 'center').style('gap', '8px');
 
-  ctrlRow.append("span")
-    .style("font-size", "12px").style("color", "#666")
-    .style("margin-right", "10px")
-    // .style("margin-bottom", "12px")
-    .text("Event overlay:");
+  const legendSwatch = swatchRow.append('svg')
+    .attr('width', '28').attr('height', '10').style('flex-shrink', '0');
 
-  const eventGroupSelect = ctrlRow.append("select")
-    .style("font-size", "12px").style("padding", "4px 8px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("background", "white").style("cursor", "pointer")
-    .style("margin-right", "10px")
-    .on("change", function() {
-      activeEventGroup = d3.select(this).property("value");
+  legendSwatch.append('line')
+    .attr('x1', '0').attr('y1', '5').attr('x2', '28').attr('y2', '5')
+    .attr('stroke-width', '2.5').attr('stroke-linecap', 'round')
+    .attr('class', 'legend-line');
+
+  const legendLabel = swatchRow.append('span')
+    .style('font-size', '12px').style('color', '#555');
+
+  // Annual mean values: font-weight 600 applied to value spans (bold per spec)
+  const legendMeanSF = legendBlock.append('span')
+    .style('font-size', '10px').style('color', '#444');
+
+  const legendMeanPkg = legendBlock.append('span')
+    .style('font-size', '10px').style('color', '#444');
+
+  // Bottom row: event overlay + date pickers + reset
+  const ctrlRow = ctrlWrapper.append('div')
+    .style('display', 'flex')
+    .style('align-items', 'center')
+    .style('gap', '10px')
+    .style('flex-wrap', 'wrap')
+    .style('margin-bottom', '12px');
+
+  ctrlRow.append('span')
+    .style('font-size', '12px').style('color', '#666')
+    .text('Event overlay:');
+
+  const eventGroupSelect = ctrlRow.append('select')
+    .style('font-size', '12px').style('padding', '3px 6px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .style('background', 'white').style('cursor', 'pointer')
+    .on('change', function () {
+      activeEventGroup = d3.select(this).property('value');
       if (xScale) redrawEventMarkers();
     });
 
-  EVENT_GROUP_OPTIONS.forEach(({ key, display }) => {
-    eventGroupSelect.append("option")
-      .attr("value", key)
-      .property("selected", key === activeEventGroup)
-      .text(display);
+  EVENT_GROUP_OPTIONS.forEach(function (opt) {
+    eventGroupSelect.append('option')
+      .attr('value', opt.key)
+      .property('selected', opt.key === activeEventGroup)
+      .text(opt.display);
   });
 
-  // ctrlRow.append("div")
-  //   .style("width", "1px").style("height", "18px")
-  //   .style("background", "#ddd").style("margin", "0 2px");
+  ctrlRow.append('div')
+    .style('width', '1px').style('height', '18px')
+    .style('background', '#ddd').style('margin', '0 2px');
 
-  ctrlRow.append("span")
-    .style("font-size", "12px").style("color", "#666")
-    .style("margin-right", "10px")
-    .text("From:");
+  ctrlRow.append('span')
+    .style('font-size', '12px').style('color', '#666')
+    .text('From:');
 
-  const startPicker = ctrlRow.append("input")
-    .attr("type", "date").attr("value", dateMinStr)
-    .attr("min", dateMinStr).attr("max", dateMaxStr)
-    .style("font-size", "12px").style("padding", "3px 6px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("margin-right", "10px")
-    .on("change", function() {
-      if (this.value > endPicker.property("value"))
-        this.value = endPicker.property("value");
+  const startPicker = ctrlRow.append('input')
+    .attr('type', 'date').attr('value', dateMinStr)
+    .attr('min', dateMinStr).attr('max', dateMaxStr)
+    .style('font-size', '12px').style('padding', '3px 6px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .on('change', function () {
+      if (this.value > endPicker.property('value'))
+        this.value = endPicker.property('value');
       redraw();
     });
 
-  ctrlRow.append("span")
-    .style("font-size", "12px").style("color", "#666")
-    .style("margin-right", "10px")
-    .text("To:");
+  ctrlRow.append('span')
+    .style('font-size', '12px').style('color', '#666')
+    .text('To:');
 
-  const endPicker = ctrlRow.append("input")
-    .attr("type", "date").attr("value", dateMaxStr)
-    .attr("min", dateMinStr).attr("max", dateMaxStr)
-    .style("font-size", "12px").style("padding", "3px 6px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("margin-right", "10px")
-    .on("change", function() {
-      if (this.value < startPicker.property("value"))
-        this.value = startPicker.property("value");
+  const endPicker = ctrlRow.append('input')
+    .attr('type', 'date').attr('value', dateMaxStr)
+    .attr('min', dateMinStr).attr('max', dateMaxStr)
+    .style('font-size', '12px').style('padding', '3px 6px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .on('change', function () {
+      if (this.value < startPicker.property('value'))
+        this.value = startPicker.property('value');
       redraw();
     });
 
-  const resetBtn = ctrlRow.append("button")
-    .text("Reset dates")
-    .style("font-size", "12px").style("padding", "4px 10px")
-    .style("border-radius", "4px").style("border", "1px solid #bbb")
-    .style("background", "#fff").style("color", "#555")
-    .style("cursor", "pointer")
-    .on("click", function() {
-      startPicker.property("value", dateMinStr);
-      endPicker.property("value", dateMaxStr);
+  const resetBtn = ctrlRow.append('button')
+    .text('Reset dates')
+    .style('font-size', '12px').style('padding', '4px 10px')
+    .style('border-radius', '4px').style('border', '1px solid #bbb')
+    .style('background', '#fff').style('color', '#555')
+    .style('cursor', 'pointer').style('font-family', 'inherit')
+    .on('click', function () {
+      startPicker.property('value', dateMinStr);
+      endPicker.property('value',   dateMaxStr);
       redraw();
     });
 
   function syncResetButton() {
-    const atFull = startPicker.property("value") === dateMinStr &&
-                   endPicker.property("value")   === dateMaxStr;
+    const atFull =
+      startPicker.property('value') === dateMinStr &&
+      endPicker.property('value')   === dateMaxStr;
     resetBtn
-      .attr("disabled", atFull ? true : null)
-      .style("opacity",        atFull ? "0.35" : "1")
-      .style("cursor",         atFull ? "not-allowed" : "pointer")
-      .style("pointer-events", atFull ? "none" : "auto");
+      .attr('disabled',        atFull ? true : null)
+      .style('opacity',        atFull ? '0.35' : '1')
+      .style('cursor',         atFull ? 'not-allowed' : 'pointer')
+      .style('pointer-events', atFull ? 'none' : 'auto');
   }
 
-  //   // Legend block: swatch + annual mean reference values.
-  // // Pushed to the right of topRow via margin-left auto.
-  // const legendBlock = topRow.append("div")
-  //   .style("margin-left", "auto")
-  //   .style("display", "flex")
-  //   .style("flex-direction", "column")
-  //   .style("align-items", "flex-end")
-  //   .style("gap", "2px")
-  //   .style("padding-left", "12px");
 
-  // Legend block: out of flex flow, anchored top-right of ctrlWrapper.
-  // z-index 5 keeps it above rows without affecting layout.
-  // Remove this block independently without touching topRow or ctrlRow.
-  const legendBlock = ctrlWrapper.append("div")
-    .style("position", "absolute")
-    .style("top", "0")
-    .style("right", "0")
-    .style("z-index", "5")
-    .style("display", "flex")
-    .style("flex-direction", "column")
-    .style("align-items", "flex-end")
-    .style("gap", "3px")
-    // .style("padding", "4px 4px")
-    .style("margin-left", "0px")
-    .style("margin-top", "24px")
-    .style("background", "rgba(255,255,255,0.92)")
-    .style("border-radius", "4px");
+  /* 1e. SVG SHELL  
+  Creates the SVG and all static group elements.
+  Groups are layered in DOM order (painter's algorithm):
+  gridGroup behind everything, eventGroup above grid but
+  below the trend line, lineGroup on top. The overlay rect
+  sits above all visible elements and captures mouse events.
 
-  const swatchRow = legendBlock.append("div")
-    .style("display", "flex")
-    .style("align-items", "flex-end")
-    .style("gap", "3px");
+  To change:
+  - Chart height: change LAYOUT.H in 1a (not here).
+  - SVG overflow visible: required for tooltips and event
+    labels that render outside the SVG bounding box. Do not
+    change to hidden here - the chart-section card in CSS
+    has overflow: hidden to clip at the card boundary.
+  - Adding a new group layer: append it here in the correct
+    z-order position before or after existing groups.
+  */
 
-  // const legendSwatch = swatchRow.append("svg")
-  //   .attr("width", "28").attr("height", "10")
-  //   .style("flex-shrink", "0");
+  const tpChartScroll = container.append('div')
+    .style('overflow-x', 'auto')
+    .style('overflow-y', 'visible');
 
-  legendSwatch.append("line")
-    .attr("x1", "0").attr("y1", "20")
-    .attr("x2", "28").attr("y2", "20")
-    .attr("stroke-width", "2.5")
-    .attr("stroke-linecap", "round")
-    .attr("class", "legend-line")
-    .style("align-items", "flex-end");;
+  const tpScrollInner = tpChartScroll.append('div')
+    .style('min-width', MIN_CHART_WIDTH + 'px')
+    .style('position', 'relative');
 
-  // const legendLabel = swatchRow.append("span")
-  //   .style("font-size", "12px")
-  //   .style("color", "#555");
+  const svg = tpScrollInner.append('svg')
+    .attr('width',  totalWidth)
+    .attr('height', H + MARGIN.top + MARGIN.bottom)
+    .style('overflow', 'visible');
 
-  // Two stat lines below the swatch - values updated in redraw()
-  const legendMeanSF = legendBlock.append("span")
-    .style("font-size", "12px").style("color", "#555");
+  const g = svg.append('g')
+    .attr('transform', 'translate(' + MARGIN.left + ',' + MARGIN.top + ')');
 
-  const legendMeanPkg = legendBlock.append("span")
-    .style("font-size", "12px").style("color", "#555");
+  const gridGroup  = g.append('g').attr('class', 'grid');
+  const eventGroup = g.append('g').attr('class', 'events');
+  const lineGroup  = g.append('g').attr('class', 'line');
+  const xAxisGroup = g.append('g').attr('transform', 'translate(0,' + H + ')');
+  const yAxisGroup = g.append('g');
 
+  // Y-axis label: rotated text, updated in redraw() when metric changes
+  const yAxisLabelEl = g.append('text')
+    .attr('transform', 'rotate(-90)')
+    .attr('x', -(H / 2))
+    .attr('y', -(MARGIN.left - 10))
+    .attr('text-anchor', 'middle')
+    .style('font-size', '11px')
+    .style('fill', '#666');
 
-  // 1e: SVG shell
-
-  const svg = container.append("svg")
-    .attr("width", width)
-    .attr("height", H + MARGIN.top + MARGIN.bottom)
-    .style("overflow", "visible");
-
-  const g = svg.append("g")
-    .attr("transform", `translate(${MARGIN.left + 25},${MARGIN.top})`);
-
-  // Layer order: grid, events, line, overlay
-  const gridGroup  = g.append("g").attr("class", "grid");
-  const eventGroup = g.append("g").attr("class", "events");
-  const lineGroup  = g.append("g").attr("class", "line");
-  const xAxisGroup = g.append("g").attr("transform", `translate(0,${H})`);
-  const yAxisGroup = g.append("g");
-
-  // Y-axis label - text updated in redraw(), y anchored to MARGIN.left
-  const yAxisLabelEl = g.append("text")
-    .attr("transform", "rotate(-90)")
-    .attr("x", -(H / 2))
-    .attr("y", -(MARGIN.left - 10))
-    .attr("text-anchor", "middle")
-    .style("font-size", "11px")
-    .style("fill", "#666");
-
-  // Date x-axis label - static, always visible
-  g.append("text")
-    .attr("x", W / 2)
-    .attr("y", H + LAYOUT.DATE_LABEL_Y)
-    .attr("text-anchor", "middle")
-    .style("font-size", "11px")
-    .style("fill", "#666")
-    .text("Date");
+  // Date x-axis label: static, stored as reference so resize can reposition it
+  const dateLabelEl = g.append('text')
+    .attr('x', W / 2)
+    .attr('y', H + LAYOUT.DATE_LABEL_Y)
+    .attr('text-anchor', 'middle')
+    .style('font-size', '11px')
+    .style('fill', '#666')
+    .text('Date');
 
   // Hover elements
-  const hoverLine = g.append("line")
-    .attr("y1", 0).attr("y2", H)
-    .attr("stroke", "#aaa").attr("stroke-width", 1)
-    .attr("stroke-dasharray", "4,3")
-    .style("display", "none");
+  const hoverLine = g.append('line')
+    .attr('y1', 0).attr('y2', H)
+    .attr('stroke', '#aaa').attr('stroke-width', 1)
+    .attr('stroke-dasharray', '4,3')
+    .style('display', 'none');
 
-  const hoverDot = g.append("circle")
-    .attr("r", 5).attr("fill", "white").attr("stroke", "#555")
-    .attr("stroke-width", 2)
-    .style("display", "none");
+  const hoverDot = g.append('circle')
+    .attr('r', 5).attr('fill', 'white').attr('stroke', '#555')
+    .attr('stroke-width', 2)
+    .style('display', 'none');
 
-  const overlay = g.append("rect")
-    .attr("width", W).attr("height", H)
-    .attr("fill", "none")
-    .style("pointer-events", "all");
+  // Overlay rect captures mouse events across the full chart area.
+  // Stored as a variable so the resize handler can update its width.
+  const overlay = g.append('rect')
+    .attr('width', W).attr('height', H)
+    .attr('fill', 'none')
+    .style('pointer-events', 'all');
 
-  // Data tooltip div
-  const tooltip = container.append("div")
-    .style("position", "absolute").style("pointer-events", "none")
-    .style("background", "rgba(255,255,255,0.97)")
-    .style("border", "1px solid #ccc").style("border-radius", "6px")
-    .style("padding", "8px 12px").style("font-size", "12px")
-    .style("line-height", "1.8")
-    .style("box-shadow", "0 2px 8px rgba(0,0,0,0.12)")
-    .style("display", "none").style("max-width", "240px")
-    .style("z-index", "10");
+  // Tooltip div: absolutely positioned, hidden until hover
+  const tooltip = container.append('div')
+    .style('position', 'absolute').style('pointer-events', 'none')
+    .style('background', 'rgba(255,255,255,0.97)')
+    .style('border', '1px solid #ccc').style('border-radius', '6px')
+    .style('padding', '8px 12px').style('font-size', '12px')
+    .style('line-height', '1.8')
+    .style('box-shadow', '0 2px 8px rgba(0,0,0,0.12)')
+    .style('display', 'none').style('max-width', '240px')
+    .style('z-index', '10');
 
-  // Footnote below SVG - text set by redrawEventMarkers()
-  const footnoteEl = container.append("p")
-    .style("font-size", LAYOUT.FOOTNOTE_SIZE)
-    .style("color", "#bbb")
-    .style("margin", LAYOUT.FOOTNOTE_MARGIN)
-    .style("min-height", "18px")
-    .text(EVENT_FOOTNOTES["public_holidays"]);
+  // footnoteEl inside tpChartScroll scrolls horizontally with the chart.
+  const footnoteEl = tpChartScroll.append('p')
+    .style('font-size', LAYOUT.FOOTNOTE_SIZE)
+    .style('color', '#bbb')
+    .style('margin', LAYOUT.FOOTNOTE_MARGIN)
+    .style('min-height', '18px')
+    .text(EVENT_FOOTNOTES['public_holidays'] || '');
 
 
-  // 1f: Event markers
+  /* 1f. EVENT MARKERS
+  redrawEventMarkers() draws vertical dashed lines,
+  tick marks, dots, and rotated labels for all events in the
+  active group. It reads xScale which is assigned in redraw()
+  before this function is called. Clearing and redrawing the
+  full eventGroup on every call keeps the logic simple and
+  avoids stale markers after date range changes.
+
+  To change:
+  - Label colour: update the fill value in the text append.
+  - Line style: update stroke-dasharray on the long dashed line.
+  - Tick height above the chart: update LAYOUT.EVENT_TICK_Y1
+    and LAYOUT.EVENT_LABEL_Y in 1a.
+  */
 
   function redrawEventMarkers() {
     if (!xScale) return;
-    eventGroup.selectAll("*").remove();
+    eventGroup.selectAll('*').remove();
 
-    const [domMin, domMax] = xScale.domain();
+    const domainRange  = xScale.domain();
+    const domMin       = domainRange[0];
+    const domMax       = domainRange[1];
     const activeEvents = EVENTS_BY_GROUP[activeEventGroup] || [];
 
-    activeEvents.forEach(evt => {
-      const evtDate = parseDate(evt.date);
+    activeEvents.forEach(function (evt) {
+      const evtDate = parseEventDate(evt.date);
       if (!evtDate || evtDate < domMin || evtDate > domMax) return;
+
       const ex = xScale(evtDate);
 
-      // const markerG = eventGroup.append("g")
-      //   .attr("class", "event-marker")
-      //   .style("cursor", "default");
-
-      // markerG.append("line")
-      //   .attr("x1", ex).attr("x2", ex)
-      //   .attr("y1", LAYOUT.EVENT_TICK_Y1)
-      //   .attr("y2", LAYOUT.EVENT_TICK_Y2)
-      //   .attr("stroke", "#bbb").attr("stroke-width", 1.5);
-
-      // markerG.append("circle")
-      //   .attr("cx", ex).attr("cy", LAYOUT.EVENT_TICK_Y2)
-      //   .attr("r", 2).attr("fill", "#bbb");
-
-      // markerG.append("text")
-      //   .attr("transform",
-      //     `translate(${ex + 3},${LAYOUT.EVENT_LABEL_Y}) rotate(-90)`)
-      //   .attr("text-anchor", "start")
-      //   .style("font-size", "9px").style("fill", "#aaa")
-      //   .text(evt.label);
-
-      const markerG = eventGroup.append("g")
-        .attr("class", "event-marker")
-        .style("cursor", "default");
+      const markerG = eventGroup.append('g')
+        .attr('class', 'event-marker')
+        .style('cursor', 'default');
 
       // Full-height dashed line through chart body
-      markerG.append("line")
-        .attr("x1", ex).attr("x2", ex)
-        .attr("y1", LAYOUT.EVENT_TICK_Y2)
-        .attr("y2", H)
-        .attr("stroke", "#bbb").attr("stroke-width", 1)
-        .attr("stroke-dasharray", "4,3");
+      markerG.append('line')
+        .attr('x1', ex).attr('x2', ex)
+        .attr('y1', LAYOUT.EVENT_TICK_Y2).attr('y2', H)
+        .attr('stroke', '#bbb').attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,3');
 
-      // Short solid tick above the chart grid
-      markerG.append("line")
-        .attr("x1", ex).attr("x2", ex)
-        .attr("y1", LAYOUT.EVENT_TICK_Y1)
-        .attr("y2", LAYOUT.EVENT_TICK_Y2)
-        .attr("stroke", "#bbb").attr("stroke-width", 1.5);
+      // Short solid tick above grid
+      markerG.append('line')
+        .attr('x1', ex).attr('x2', ex)
+        .attr('y1', LAYOUT.EVENT_TICK_Y1).attr('y2', LAYOUT.EVENT_TICK_Y2)
+        .attr('stroke', '#aaa').attr('stroke-width', 1.5);
 
       // Dot at the grid boundary
-      markerG.append("circle")
-        .attr("cx", ex).attr("cy", LAYOUT.EVENT_TICK_Y2)
-        .attr("r", 2).attr("fill", "#bbb");
+      markerG.append('circle')
+        .attr('cx', ex).attr('cy', LAYOUT.EVENT_TICK_Y2)
+        .attr('r', 3).attr('fill', '#aaa');
 
-      // Rotated label above the tick
-      markerG.append("text")
-        .attr("transform",
-          `translate(${ex + 3},${LAYOUT.EVENT_LABEL_Y}) rotate(-90)`)
-        .attr("text-anchor", "start")
-        .style("font-size", "9px").style("fill", "#aaa")
+      // Rotated label above tick.
+      // fill #767676 passes WCAG AA contrast (4.5:1 on white).
+      markerG.append('text')
+        .attr('transform',
+          'translate(' + (ex + 3) + ',' + LAYOUT.EVENT_LABEL_Y + ') rotate(-90)')
+        .attr('text-anchor', 'start')
+        .style('font-size', '9px')
+        .style('fill', '#767676')
         .text(evt.label);
     });
 
-    footnoteEl.text(EVENT_FOOTNOTES[activeEventGroup] || "");
+    footnoteEl.text(EVENT_FOOTNOTES[activeEventGroup] || '');
   }
 
 
-  // 1g: Redraw
+  /* 1g. REDRAW
+  Full chart redraw triggered by any control change.
+  Reads current state (activeMKey, activePkg, date range),
+  filters plot data, recomputes scales, re-renders axes,
+  gridlines, event markers, and the trend line. The tooltip
+  and hover handlers are also re-attached here because the
+  bisect closure needs the current plotData array.
+
+  Composite metric: y-axis domain fixed to [0, 1] with
+  explicit tick values [0, 0.2, 0.4, 0.6, 0.8, 1.0].
+
+  To change:
+  - Curve type: change d3.curveMonotoneX to another d3 curve.
+  - Line thickness: change stroke-width in the path append.
+  - Animation duration: change the transition duration (600ms).
+  - Tooltip content: edit the html() template string below.
+  */
 
   function redraw() {
+
     const cfg  = METRICS[activeMKey];
     const src  = activePkg ? smoothedPkg : smoothed;
-    const mean = activePkg
-      ? annualMeansPkg[activeMKey]
-      : annualMeans[activeMKey];
+    const mean = activePkg ? annualMeansPkg[activeMKey] : annualMeans[activeMKey];
 
-    const dFrom = new Date(startPicker.property("value") + "T00:00:00");
-    const dTo   = new Date(endPicker.property("value")   + "T00:00:00");
+    const dFrom = new Date(startPicker.property('value') + 'T00:00:00');
+    const dTo   = new Date(endPicker.property('value')   + 'T00:00:00');
 
-    const plotData = src[activeMKey].filter(
-      d => d.date >= dFrom && d.date <= dTo
-    );
+    const plotData = src[activeMKey].filter(function (d) {
+      return d.date >= dFrom && d.date <= dTo;
+    });
     if (!plotData.length) return;
 
-    // X scale - hoisted for redrawEventMarkers()
     xScale = d3.scaleTime()
       .domain([dFrom, dTo])
       .range([0, W]);
 
-    // // Y scale - composite zero-baseline, per-kg minimum range enforced
-    // const [yLow0, yHigh0] = d3.extent(plotData, d => d.value);
-    // let yLow = yLow0, yHigh = yHigh0;
-
-    // if (activePkg && LAYOUT.PKG_MIN_RANGE > 0) {
-    //   const span = yHigh - yLow;
-    //   if (span < LAYOUT.PKG_MIN_RANGE) {
-    //     const mid = (yLow + yHigh) / 2;
-    //     yLow  = mid - LAYOUT.PKG_MIN_RANGE / 2;
-    //     yHigh = mid + LAYOUT.PKG_MIN_RANGE / 2;
-    //   }
-    // }
-
-    // const padFactor = activePkg ? LAYOUT.PKG_PAD_FACTOR : 0.08;
-    // const yPad      = (yHigh - yLow) * padFactor;
-    // const yMin      = activeMKey === "composite" ? 0 : yLow - yPad;
-
-    // const yScale = d3.scaleLinear()
-    //   .domain([yMin, yHigh + yPad])
-    //   .range([H, 0]);
-
-    // Composite: fixed 0-1 domain regardless of data range.
-    // This ensures both 0 and 1 labels always appear and the two
-    // composite views (Total SF and Per-kg) share the same axis.
-    // All other metrics: auto-range with padding.
+    // Y scale: composite fixed 0-1, all others auto-range with padding
     let yDomainMin, yDomainMax;
-
-    if (activeMKey === "composite") {
+    if (activeMKey === 'composite') {
       yDomainMin = 0;
       yDomainMax = 1;
     } else {
-      const [yLow0, yHigh0] = d3.extent(plotData, d => d.value);
-      let yLow = yLow0, yHigh = yHigh0;
+      const ext   = d3.extent(plotData, function (d) { return d.value; });
+      let yLow = ext[0], yHigh = ext[1];
       if (activePkg && LAYOUT.PKG_MIN_RANGE > 0) {
         const span = yHigh - yLow;
         if (span < LAYOUT.PKG_MIN_RANGE) {
@@ -886,9 +777,9 @@ function createTrendChart(data, { width = 960 } = {}) {
           yHigh = mid + LAYOUT.PKG_MIN_RANGE / 2;
         }
       }
-      const padFactor = activePkg ? LAYOUT.PKG_PAD_FACTOR : 0.25;
+      const padFactor = activePkg ? LAYOUT.PKG_PAD_FACTOR : 0.08;
       const yPad      = (yHigh - yLow) * padFactor;
-      yDomainMin      = yLow - yPad;
+      yDomainMin      = yLow  - yPad;
       yDomainMax      = yHigh + yPad;
     }
 
@@ -896,191 +787,280 @@ function createTrendChart(data, { width = 960 } = {}) {
       .domain([yDomainMin, yDomainMax])
       .range([H, 0]);
 
-    // X-axis ticks - force Jan label when dFrom is mid-January
-    const regularTicks = d3.timeMonth.range(
-      d3.timeMonth.ceil(dFrom), dTo
-    );
-    const allTicks = (dFrom.getMonth() === 0 && dFrom.getDate() > 1)
-      ? [dFrom, ...regularTicks]
-      : regularTicks;
+    const regularTicks = d3.timeMonth.range(d3.timeMonth.ceil(dFrom), dTo);
+    const allTicks     = (dFrom.getMonth() === 0 && dFrom.getDate() > 1)
+      ? [dFrom].concat(regularTicks) : regularTicks;
+
+    let visibleTicks = allTicks;
+    let xTickFormat;
+
+    if (W < 200) {
+      // Very narrow: quarterly ticks, short name only
+      visibleTicks = allTicks.filter(function (d) {
+        return d.getMonth() % 3 === 0;
+      });
+      xTickFormat = d3.timeFormat('%b');
+    } else if (W < 600) {
+      // Narrow: every other month, short name only
+      visibleTicks = allTicks.filter(function (_, i) { return i % 2 === 0; });
+      xTickFormat  = d3.timeFormat('%b');
+    } else {
+      // Wide: all monthly ticks with year
+      xTickFormat = d3.timeFormat('%b %Y');
+    }
 
     xAxisGroup.call(
       d3.axisBottom(xScale)
-        .tickValues(allTicks)
-        .tickFormat(d3.timeFormat("%b %Y"))
+        .tickValues(visibleTicks)
+        .tickFormat(xTickFormat)
     );
-    xAxisGroup.selectAll("text")
-      .style("font-size", "10px")
-      .attr("dy", "0.8em");
+    xAxisGroup.selectAll('text')
+      .style('font-size', W < 400 ? '9px' : '10px')
+      .attr('dy', '0.8em');
 
-    // // Y-axis - axisFormatter for short compact tick labels
-    // yAxisGroup.call(
-    //   d3.axisLeft(yScale)
-    //     .ticks(6)
-    //     .tickFormat(axisFormatter)
-    // );
-    // yAxisGroup.selectAll("text").style("font-size", "10px");
-
-    // Composite: explicit tick values include 0 and 1 at all times.
-    // Other metrics: auto ticks from yScale.
-    const yAxisCall = activeMKey === "composite"
+    // Y-axis: composite uses explicit ticks, others use auto
+    const yAxisCall = activeMKey === 'composite'
       ? d3.axisLeft(yScale)
           .tickValues([0, 0.2, 0.4, 0.6, 0.8, 1.0])
-          .tickFormat(d3.format(".1f"))
-      : d3.axisLeft(yScale)
-          .ticks(6)
-          .tickFormat(axisFormatter);
+          .tickFormat(d3.format('.1f'))
+      : d3.axisLeft(yScale).ticks(6).tickFormat(axisFormatter);
 
     yAxisGroup.call(yAxisCall);
-    yAxisGroup.selectAll("text").style("font-size", "10px");
-
-    // Gridlines - horizontal only, aligned to y-axis ticks
-    gridGroup.selectAll("*").remove();
-    gridGroup.call(
-      d3.axisLeft(yScale)
-        .ticks(6)
-        .tickSize(-W)
-        .tickFormat("")
-    );
-    gridGroup.selectAll("line")
-      .attr("stroke", "#e8e8e8")
-      .attr("stroke-dasharray", "2,2");
-    gridGroup.select(".domain").remove();
-
-    // Y-axis label - updates with metric and toggle state
+    yAxisGroup.selectAll('text').style('font-size', '10px');
     yAxisLabelEl.text(activePkg ? cfg.pkg_label : cfg.label);
 
-    // Event markers
+    // Horizontal gridlines
+    gridGroup.selectAll('*').remove();
+    gridGroup.call(
+      d3.axisLeft(yScale).ticks(6).tickSize(-W).tickFormat('')
+    );
+    gridGroup.selectAll('line')
+      .attr('stroke', '#e8e8e8')
+      .attr('stroke-dasharray', '2,2');
+    gridGroup.select('.domain').remove();
+
     redrawEventMarkers();
 
     // Trend line with draw-on animation
-    lineGroup.selectAll("*").remove();
+    lineGroup.selectAll('*').remove();
 
     const lineGen = d3.line()
-      .x(d => xScale(d.date))
-      .y(d => yScale(d.value))
+      .x(function (d) { return xScale(d.date);  })
+      .y(function (d) { return yScale(d.value); })
       .curve(d3.curveMonotoneX)
-      .defined(d => d.value != null && !isNaN(d.value));
+      .defined(function (d) { return d.value != null && !isNaN(d.value); });
 
-    const path = lineGroup.append("path")
+    const path = lineGroup.append('path')
       .datum(plotData)
-      .attr("fill", "none")
-      .attr("stroke", cfg.colour)
-      .attr("stroke-width", 2.2)
-      .attr("d", lineGen);
+      .attr('fill', 'none')
+      .attr('stroke', cfg.colour)
+      .attr('stroke-width', 2.2)
+      .attr('d', lineGen);
 
     const pathLen = path.node().getTotalLength();
     path
-      .attr("stroke-dasharray", pathLen)
-      .attr("stroke-dashoffset", pathLen)
-      .transition()
-      .duration(600)
-      .attr("stroke-dashoffset", 0);
+      .attr('stroke-dasharray', pathLen)
+      .attr('stroke-dashoffset', pathLen)
+      .transition().duration(600)
+      .attr('stroke-dashoffset', 0);
 
-    // Hover interaction
-    const bisect = d3.bisector(d => d.date).left;
+    // Hover tooltip
+    const bisect = d3.bisector(function (d) { return d.date; }).left;
 
     overlay
-      .on("mousemove", function(event) {
-        const [mx] = d3.pointer(event, this);
-        const x0   = xScale.invert(mx);
-        const i    = bisect(plotData, x0, 1);
-        const d0   = plotData[i - 1];
-        const d1   = plotData[i];
-        const pt   = (!d1 || x0 - d0.date < d1.date - x0) ? d0 : d1;
+      .on('mousemove', function (event) {
+        const mx  = d3.pointer(event, this)[0];
+        const x0  = xScale.invert(mx);
+        const i   = bisect(plotData, x0, 1);
+        const d0  = plotData[i - 1];
+        const d1  = plotData[i];
+        const pt  = (!d1 || x0 - d0.date < d1.date - x0) ? d0 : d1;
         if (!pt) return;
 
         const px = xScale(pt.date);
         const py = yScale(pt.value);
 
         hoverLine
-          .style("display", null)
-          .attr("stroke", cfg.colour)
-          .attr("x1", px).attr("x2", px);
+          .style('display', null)
+          .attr('stroke', cfg.colour)
+          .attr('x1', px).attr('x2', px);
 
         hoverDot
-          .style("display", null)
-          .attr("cx", px).attr("cy", py)
-          .attr("stroke", cfg.colour);
+          .style('display', null)
+          .attr('cx', px).attr('cy', py)
+          .attr('stroke', cfg.colour);
 
-        const pctDev = mean
-          ? ((pt.value - mean) / mean) * 100
-          : null;
-        const pctStr   = pctFormatter(pctDev);
-        const pctColour = pctDev >= 0 ? "#d62728" : "#2ca02c";
+        const pctDev    = mean ? ((pt.value - mean) / mean) * 100 : null;
+        const pctStr    = pctFormatter(pctDev);
+        const pctColour = pctDev >= 0 ? '#d62728' : '#2ca02c';
         const activeUnit = activePkg ? cfg.pkg_unit : cfg.unit;
+        const tipH      = 130;
+        const tipW      = 240;
+        const cRect     = container.node().getBoundingClientRect();
+        const left      = event.clientX - cRect.left + 14;
+        const top       = event.clientY - cRect.top;
+        const flipUp    = top + tipH + 10 > cRect.height;
 
         tooltip
-          .style("display", null)
+          .style('display', null)
           .html(
-            `<div style="font-weight:600;color:${cfg.colour};margin-bottom:3px">
-               ${cfg.short}${activePkg ? " per kg" : " Total SF"}
-             </div>
-             <div><b>Week of:</b> ${fmtDate(pt.date)}</div>
-             <div><b>Value:</b> ${yFormatter(pt.value, cfg)} ${activeUnit}</div>
-             <hr style="margin:5px 0;border:none;border-top:1px solid #eee"/>
-             <div><b>Annual mean:</b> ${yFormatter(mean, cfg)} ${activeUnit}</div>
-             <div><b>vs annual mean:</b>
-               <span style="color:${pctColour}">${pctStr}</span>
-             </div>
-             <div style="font-size:10px;color:#bbb;margin-top:3px">
-               7-day bin average
-             </div>`
-          );
-
-        const cRect  = container.node().getBoundingClientRect();
-        const tipW   = 240;
-        const tipH   = 130;
-        const left   = event.clientX - cRect.left + 14;
-        const top    = event.clientY - cRect.top;
-        const flipUp = top + tipH + 10 > cRect.height;
-        tooltip
-          .style("left", (left + tipW > cRect.width ? left - tipW - 24 : left) + "px")
-          .style("top",  (flipUp ? top - tipH - 10 : top + 10) + "px");
-
+            '<div style="font-weight:600;color:' + cfg.colour +
+            ';margin-bottom:3px">' + cfg.short +
+            (activePkg ? ' per kg' : ' Total SF') + '</div>' +
+            '<div><b>Week of:</b> ' + fmtDate(pt.date) + '</div>' +
+            '<div><b>Value:</b> ' + yFormatter(pt.value, cfg) +
+            ' ' + cfg.unit + '</div>' +
+            '<hr style="margin:5px 0;border:none;border-top:1px solid #eee"/>' +
+            '<div><b>Annual mean:</b> ' + yFormatter(mean, cfg) +
+            ' ' + cfg.unit + '</div>' +
+            '<div><b>vs annual mean:</b> ' +
+            '<span style="color:' + pctColour + '">' + pctStr + '</span></div>' +
+            '<div style="font-size:10px;color:#bbb;margin-top:3px">' +
+            'Values shown are averaged over 7 days</div>'
+          )
+          .style('left',
+            ((left + tipW > cRect.width ? left - tipW - 24 : left)) + 'px')
+          .style('top', (flipUp ? top - tipH - 10 : top + 10) + 'px');
       })
-      .on("mouseleave", function() {
-        hoverLine.style("display", "none");
-        hoverDot.style("display",  "none");
-        tooltip.style("display",   "none");
+      .on('mouseleave', function () {
+        hoverLine.style('display', 'none');
+        hoverDot.style('display',  'none');
+        tooltip.style('display',   'none');
       });
 
-    // Title and subtitle
-    const activeUnit = activePkg ? cfg.pkg_unit : cfg.unit;
-    // titleDiv
-    //   .style("color", cfg.colour)
-    //   .text(
-    //     `${cfg.short}${activePkg ? " - Per kg" : " - Total SF"}`
-    //   );
-    // subtitleDiv.text("Values shown are averaged over 7 days");
-  
-    // titleDiv
-    //   .style("color", cfg.colour)
-    //   .text(
-    //     `${cfg.short}${activePkg ? " - Per kg" : " - Total SF"}`
-    //   );
-    // subtitleDiv.text("Values shown are averaged over 7 days");
-
-    // // Update legend swatch colour and label text
-    // legendSwatch.select(".legend-line")
-    //   .attr("stroke", cfg.colour);
-    // legendLabel
-    //   .style("color", cfg.colour)
-    //   .text(`${cfg.short} - ${activePkg ? "Per kg" : "Total SF"}`);
-
-    legendSwatch.select(".legend-line").attr("stroke", cfg.colour);
+    // Legend swatch colour and annual mean values.
+    legendSwatch.select('.legend-line').attr('stroke', cfg.colour);
     legendLabel
-      .style("color", cfg.colour)
-      .text(`${cfg.short} - ${activePkg ? "Per kg" : "Total SF"}`);
-    legendMeanSF.text(
-      `Annual mean SF: ${statFmt(annualMeans[activeMKey])} ${cfg.unit}`
+      .style('color', cfg.colour)
+      .text(cfg.short + ' - ' + (activePkg ? 'Per kg' : 'Total SF'));
+
+    legendMeanSF.html(
+      'Annual mean SF: <b style="font-weight:600">' +
+      statFmt(annualMeans[activeMKey]) + ' ' + cfg.unit + '</b>'
     );
-    legendMeanPkg.text(
-      `Annual mean per kg: ${statFmt(annualMeansPkg[activeMKey])} ${cfg.pkg_unit}`
+    legendMeanPkg.html(
+      'Annual mean per kg: <b style="font-weight:600">' +
+      statFmt(annualMeansPkg[activeMKey]) + ' ' + cfg.pkg_unit + '</b>'
     );
 
     syncResetButton();
   }
+
+
+  /* 1h. RESPONSIVE RESIZE 
+  A ResizeObserver watches the closest
+  .chart-section ancestor. When its width changes (window
+  resize, sidebar proportion change, panel becoming visible),
+  the observer fires after a 120ms debounce, updates totalWidth
+  and W, adjusts the SVG width attribute and all elements that
+  depend on W, then calls redraw() to re-render axes and chart
+  content at the new width.
+
+  On narrow screens (below 768px) the .chart-section spans
+  the full viewport width minus card padding, so the chart
+  automatically uses the full available space.
+
+  To change:
+  - Debounce delay: change the 120 value (milliseconds). Lower
+    values give snappier response but more redraws.
+  - Minimum chart width: change in Math.max(). Below
+    a point the controls and category labels become unreadable.
+  - Padding subtraction: the 48 subtracts the chart-section's
+    horizontal padding (2 x 24px).
+  */
+
+  let resizeTimer = null;
+
+  // Computes a proportional H from the current totalWidth.
+  // Ratio 0.31 matches the original 300px / ~960px full-width shape.
+  // Clamped between 180px (minimum readable) and LAYOUT.H (300px max).
+  // To change the proportion: adjust 0.31.
+  // To change the minimum height: adjust 180.
+  function computeH(w) {
+    return Math.min(
+      Math.max(Math.round(w * 0.31), 180),
+      LAYOUT.H
+    );
+  }
+
+  function applyNewH(newH) {
+    H = newH;
+    svg.attr('height', H + MARGIN.top + MARGIN.bottom);
+    xAxisGroup.attr('transform', 'translate(0,' + H + ')');
+    hoverLine.attr('y2', H);
+    overlay.attr('height', H);
+    yAxisLabelEl.attr('x', -(H / 2));
+    dateLabelEl.attr('y', H + LAYOUT.DATE_LABEL_Y);
+  }
+
+  const resizeObserver = new ResizeObserver(function (entries) {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (!entries.length) return;
+      const entry      = entries[entries.length - 1];
+
+      // containerW: actual visible width of the chart-section viewport.
+      // newTotal: chart render width, floored at MIN_CHART_WIDTH.
+      // When containerW < MIN_CHART_WIDTH the chart stays at MIN_CHART_WIDTH
+      // and tpChartScroll provides horizontal scrolling.
+      const containerW = Math.floor(entry.contentRect.width) - 48;
+      const newTotal   = Math.max(containerW, MIN_CHART_WIDTH);
+
+      // Legend narrow check uses containerW (actual viewport) not newTotal,
+      // so the legend drops below controls when the screen is physically
+      // narrow, even if the chart renders wider than the viewport.
+      const narrow = containerW < 520;
+
+      legendBlock
+        .style('position',    narrow ? 'relative' : 'absolute')
+        .style('top',         narrow ? 'auto' : '0')
+        .style('right',       narrow ? 'auto' : '0')
+        .style('margin-top',  narrow ? '8px'  : '0')
+        .style('align-items', narrow ? 'flex-start' : 'flex-end');
+      topRow.style('padding-right', narrow ? '0' : '240px');
+
+      if (Math.abs(newTotal - totalWidth) <= 4) return;
+      totalWidth = newTotal;
+      W          = totalWidth - MARGIN.left - MARGIN.right;
+      svg.attr('width', totalWidth);
+      overlay.attr('width', W);
+      dateLabelEl.attr('x', W / 2);
+
+      redraw();
+    }, 120);
+  });
+
+  // Fall back to the container's parent if chart-section is not found.
+  setTimeout(function () {
+    const node = container.node();
+    if (!node.parentElement) return;
+
+    const target     = node.closest('.chart-section') || node.parentElement;
+    resizeObserver.observe(target);
+
+    const containerW = Math.floor(target.getBoundingClientRect().width) - 48;
+    const initW      = Math.max(containerW, MIN_CHART_WIDTH);
+
+    // Legend layout and padding use containerW (actual viewport width)
+    const narrow = containerW < 520;
+    legendBlock
+      .style('position',    narrow ? 'relative' : 'absolute')
+      .style('top',         narrow ? 'auto' : '0')
+      .style('right',       narrow ? 'auto' : '0')
+      .style('margin-top',  narrow ? '8px'  : '0')
+      .style('align-items', narrow ? 'flex-start' : 'flex-end');
+    topRow.style('padding-right', narrow ? '0' : '240px');
+
+    if (Math.abs(initW - totalWidth) > 4) {
+      totalWidth = initW;
+      W          = totalWidth - MARGIN.left - MARGIN.right;
+      applyNewH(computeH(totalWidth));
+      svg.attr('width', totalWidth);
+      overlay.attr('width', W);
+      dateLabelEl.attr('x', W / 2);
+      redraw();
+    }
+  }, 0);
 
 
   redraw();

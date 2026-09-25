@@ -1,11 +1,50 @@
-/* dashboard.css */
+/*
+- dashboard_V3.css
+- Stylesheet for the Sustainable Food Sales Explorer dashboard.
+- Controls all layout, spacing, colour, and typography for the shell.
+- Chart-specific styling (axes, cells, tooltips) lives inside each
+- chart's JS file via inline D3 styles and is not affected here.
+ *
+- Section map:
+- 1. Base reset
+- 2. Navigation bar
+- 3. Page layout grid
+- 4. Sidebar
+- 5. Sidebar inner content (per-tab)
+- 6. Sidebar how-to text block
+- 7. Glossary accordion
+- 8. Sidebar footer
+- 9. Right panel
+- 10. Tab panels (show / hide logic)
+- 11. About page layout
+- 12. Chart panel and chart section cards
+- 13. Loading message
+- 14. Utility and shared text classes
+- 15. Keyboard focus ring (accessibility)
+- 16. Responsive overrides (max-width 768px)
+ */
 
-*, *::before, *::after {
+
+/* 1. BASE RESET
+Sets box model, removes browser default margin/padding,
+locks overflow on body so only the right-panel scrolls.
+
+To change: Adjust font-family here to change the typeface
+across the entire dashboard. Do not change overflow or height -
+removing those will cause the whole page to scroll. */
+
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html {
+  height: 100%;
+}
+
 body {
-  font-family: sans-serif;
+  font-family: 'Segoe UI', Arial, sans-serif;
   background: #f7f7f7;
   margin: 0;
   padding: 0;
@@ -14,613 +53,184 @@ body {
   overflow: hidden;
 }
 
-/* 
-body {
-  font-family: sans-serif;
-  background: #f7f7f7;
-  margin: 20px 0px 25px 50px;
-  padding: 0;
-  color: #333;
-  min-height: 100vh;
-} */
 
-/* Two-column layout */
-
-/* .dashboard-layout {
-  display: grid;
-  grid-template-columns: 1fr 4fr;
-  min-height: 98vh;
-} */
-
-/* ---- Full page layout: fills viewport below nav ---- */
-
-.page-layout {
-  position: fixed;
-  top: 48px;       /* matches .tab-nav height */
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: grid;
-  grid-template-columns: 360px 1fr;
-  overflow: hidden;
-}
-
-/* Right panel scrolls independently - goes behind fixed nav when scrolling */
-.right-panel {
-  overflow-y: scroll;       /* always show scrollbar track, never shifts layout */
-  overflow-x: hidden;
-  height: 100%;
-  background: #f7f7f7;
-  scrollbar-gutter: stable; /* modern browsers: reserves gutter without scrollbar */
-}
-
-/* Tab panels fill their content area naturally */
-.tab-panel {
-  display: block;
-}
-
-.tab-panel-hidden {
-  display: none;
-}
-
-/* Chart containers never exceed right-panel width */
-/* #trend-container,
-#heatmap-container {
-  width: 100%;
-  overflow: auto;
-  overflow-y: auto;
-  overflow-x: hidden;
-} */
-
-.list-items {
-  font-size: 14px;
-  line-height: 25px;
-}
-
-/* #heatmap-container {
-  padding-right: 0px;
-} */
-
-/* #trend-container {
-  overflow-x:hidden;
-} */
-
-/* Left sidebar: 1/3 */
-
-/* .sidebar {
-  background: #f7f7f7;
-  border-right: 1px solid #e8e8e8;
-  padding: 15px 10px 15px 10px;
-  position: sticky;
-  top: 0;
-  height: 80vh;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  text-align: justify;
-  margin-top: 105px;
-  border-radius: 6px 6px 6px 6px;
-  border: 0.1px solid #451e77;
-  gap: 0;
-} */
-
-.sidebar {
-  background: #f7f7f7;
-  border-right: 1px solid #e8e8e8;
-  padding: 28px 20px 48px;
-  height: 95%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-left: 40px;
-  margin-top: 70px;
-  padding-left: 30px;
-}
-
-.sidebar-section {
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  /* border-bottom: 1px solid #f0f0f0; */
-}
-
-.sidebar-section:last-of-type {
-  border-bottom: none;
-}
-
-.sidebar-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #222;
-  margin: 0 0 4px;
-  letter-spacing: -0.01em;
-}
-
-/* .sidebar-tag {
-  font-size: 11px;
-  color: #bbb;
-  margin: 0;
-} */
-
-.sidebar-heading {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #999;
-  margin: 0 0 10px;
-}
-
-.sidebar-text {
-  font-size: 12px;
-  line-height: 1.6;
-  color: #555;
-  margin: 0;
-  padding: 15px 10px;
-  text-align: left;
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding-top: 24px;
-  font-size: 10px;
-  color: #ccc;
-  line-height: 1.6;
-}
-
-.sidebar-footer p {
-  margin: 0;
-}
-
-/* Sidebar title block: always visible above accordion */
-
-/* .sidebar-title-block {
-  padding-bottom: 20px;
-  margin-bottom: 20px;
-  text-align: left;
-  border-radius: 10px;
-  background-color: #451e77;
-  color: white;
-  padding: 15px 15px;
-} */
-
-/* .sidebar-title {
-  font-size: 18px;
-  color: white;
-  margin-bottom: 10px;
-  line-height: 1.25em;
-} */
-
-/* .sidebar-tag {
-  color: white;
-} */
-
-/* Accordion card group */
-
-.accordion-group {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-/* Header button: full width, no browser button styling */
-.accordion-header {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 15px;
-
-  /* border: none; */
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #999;
-  text-align: left;
-
-  margin-top: 10px;
-  /* margin-bottom: 10px; */
-
-  background-color: white;
-  /* color: #555; */
-  border: 1px solid #451e77;
-  border-radius: 5px;
-}
-
-.accordion-header:hover {
-  color: #999;
-}
-
-.accordion-header[aria-expanded="true"] {
-  /* color: #451e77; */
-  background-color: #e8d9fb;
-  color: black;
-}
-
-/* Indicator arrow: rotates when card is open */
-.accordion-indicator {
-  font-size: 14px;
-  transition: transform 0.2s ease;
-  display: inline-block;
-}
-
-.accordion-header[aria-expanded="true"] .accordion-indicator {
-  transform: rotate(180deg);
-}
-
-/* Body: hidden by default, revealed by max-height transition.
-   ACCORDION_HEIGHT controls the fixed content height across all cards.
-   All cards share this value so the sidebar height stays constant
-   when switching between cards.
-   Increase if the longest text section clips. */
-.accordion-body {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease, padding 0.25s ease;
-  padding: 0px 10px;
-}
-
-.accordion-body.is-open {
-  max-height: 260px;
-  /* padding-bottom: 16px; */
-}
-
-/* Chart containers */
-
-/* #trend-container,
-#heatmap-container {
-  width: 98%;
-  overflow-x: hidden;
-} */
-
-#trend-container,
-#heatmap-container {
-  width: 100%;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-/* SVG max-width prevents it exceeding its container
-   even if the width attribute is slightly too large.
-   display: block removes the inline-block descender gap. */
-#trend-container svg,
-#heatmap-container svg {
-  max-width: 100%;
-  display: block;
-}
-
-/* Global metric controls */
-
-.global-controls {
-  padding: 25px 15px;
-  padding-top: 15px;
-  margin-bottom: 10px;
-  margin-top: 20px;
-  border: 1px solid #000000;
-  /* border-top: 1px solid #000000; */
-  border-radius: 10px;
-}
-
-.global-label {
-  display: block;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #999;
-  margin-bottom: 8px;
-}
-
-.global-metric-select {
-  width: 100%;
-  font-size: 12px;
-  padding: 6px 0px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
-  /* background: #451e77;
-  color: white; */
-  cursor: pointer;
-  margin-bottom: 16px;
-}
-.global-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.global-stat-row {
-  display: flex;
-  /* flex-direction: column; */
-  justify-content: space-between;
-  align-items: baseline;
-  /* align-items: flex-end; */
-  gap: 8px;
-}
-
-.global-stat-label {
-  font-size: 10px;
-  color: #bbb;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-
-.global-stat-value {
-  font-size: 12px;
-  font-weight: 600;
-  color: #555;
-  align-self: flex-end;
-}
-
-/* Right panel: 2/3 */
-
-.chart-panel {
-  background: #f7f7f7;
-  padding: 65px 10px 10px 10px;
-  margin-left: 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 25px;
-  align-items: flex-start;
-}
-
-.chart-section {
-  background: #fff;
-  border: 0.1px solid #451e77;
-  border-radius: 6px;
-  padding: 24px 32px 32px;
-  /* padding-top: 35px; */
-  border-bottom: 0px;
-  overflow-x:hidden;
-  /* margin-bottom: -10px; */
-}
-
-/* Chart header: label + info icon */
-
-.chart-header {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  /* margin-bottom: 16px; */
-}
-
-.chart-label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #aaa;
-  display: none;
-}
-
-/* Info icon and instruction tooltip */
-
-.info-icon {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-}
-
-.info-icon-symbol {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #eee;
-  color: #aaa;
-  font-size: 9px;
-  font-weight: 700;
-  cursor: default;
-  user-select: none;
-  transition: background 0.15s, color 0.15s;
-}
-
-.info-icon:hover .info-icon-symbol {
-  background: #555;
-  color: #fff;
-}
-
-.chart-tooltip-box {
-  display: none;
-  position: absolute;
-  top: 24px;
-  left: -320px;
-  z-index: 100;
-  width: 320px;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 16px 18px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
-}
-
-.info-icon:hover .chart-tooltip-box {
-  display: block;
-}
-
-.chart-tooltip-heading {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #888;
-  margin: 0 0 10px;
-}
-
-.chart-tooltip-box p {
-  font-size: 12px;
-  line-height: 1.65;
-  color: #555;
-  margin: 0 0 10px;
-}
-
-.chart-tooltip-box p:last-child {
-  margin-bottom: 0;
-}
-
-/* 
-#trend-container select:first-of-type,
-#heatmap-container select:first-of-type {
-  display: none;
-} */
-
-/* ---- Tab navigation ---- */
+/* 2. NAVIGATION BAR
+Fixed full-width bar at z-index 100. Uses flexbox
+with justify-content: space-between so the three child blocks
+(brand, tab buttons, logos) spread across the full width.
+The tab-buttons block has flex: 1 so it grows to fill the
+centre gap; as the screen widens, the space between the buttons
+and the logos grows automatically without any JS.
+
+To change:
+- Adjust height in .tab-nav if you need a taller nav bar.
+  Also update the top: 48px value in .page-layout to match.
+- Change the background colour in .tab-nav to change the bar
+  colour (currently white).
+- The purple brand box colour is set in .tab-brand background. */
 
 .tab-nav {
   position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 100;
-  width: 95%;
-  background: #f7f7f7;
-  color: #eee;
-  border: 1px solid #451e77;
-  padding: 0 60px;
-  border-radius: 0px 0px 5px 5px;
-  padding-left: 30px;
-  margin-left: 40px;
-  margin-right: 40px;
+  background: #ffffff;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 10px 24px;
+  padding-bottom: 5px;
 }
 
 .tab-nav-inner {
   display: flex;
   align-items: center;
-  height: 75px;
-  color: #451e77;
-  margin-top: 20px;
-  margin-bottom: 10px;
-  gap: 32px;
+  justify-content: space-between;
+  height: 48px;
+  gap: 0;
+  margin-top: 15px;
+  padding-bottom: 10px;
 }
 
+/* Brand block: anchored to the left, does not shrink */
+.nav-brand-block {
+  flex: 0 0 auto;
+}
+
+/* Brand name: purple pill with bold white text.
+To change the name, edit the span text in index.html.
+To change the colour, update background below. */
 .tab-brand {
-  font-size: 24px;
-  font-weight: 700;
-  color: #eee;
-  /* color: #451e77; */
-  background-color: #451e77;
-  white-space: nowrap;
-  padding: 10px 25px;
-  border: 0.1px solid #451e77;
-  border-radius: 5px;
-}
-
-.tab-brand-note {
+  display: inline-block;
+  background: #4a2671;
+  color: #ffffff;
+  font-weight: 600;
   font-size: 16px;
-  font-weight: 400;
-  color: #eee;
-  margin-left: 6px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+  height: 100%;
 }
 
+/* Tab buttons group: grows to fill centre, stays left of logos */
 .tab-buttons {
+  flex: 1;
   display: flex;
-  justify-content: space-around;
-  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 24px;
+  gap: 4px;
 }
 
+/* Individual tab button: unstyled base with hover and active states */
 .tab-btn {
-  font-size: 12px;
-  min-width: 110px;
-  padding: 10px 20px;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 6px 14px;
   border: none;
   background: none;
-  color: #444;
+  color: #777;
   cursor: pointer;
-  border: 0.1px solid #451e77;
-  border-radius: 5px 5px 5px 5px;
-  transition: background 0.15s, color 0.1s;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
-  /* background: #ff7f0e; */
-  border: 0.1px solid #451e77;
-  color: #451e77;
-  /* font-weight: 600; */
+  background: #f0f0f0;
+  color: #333;
 }
 
+/* Active tab: filled background and darker text */
 .tab-btn-active {
-  background: #f1e8fe;
-  color: #333;
-  border: 1px solid #451e77;
-  /* font-weight: bold; */
-  /* font-weight: 600; */
+  background: #eeebf3;
+  color: #4a2671;
+  font-weight: 600;
 }
 
-/* ---- Tab panels ---- */
-
-.tab-panel {
-  display: block;
+/* Logo block: anchored to the right, mirrors brand block on the left.
+To add a logo: set the src attribute on an img.nav-logo in index.html
+and remove its style="display:none" attribute. */
+.nav-logos {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
-.tab-panel-hidden {
-  display: none;
+.nav-logo {
+  height: 45px;
+  width: auto;
+  object-fit: contain;
+  max-width: 200px;
 }
 
-/* ---- About page ---- */
 
-.about-wrapper {
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 100px 20px 80px;
-  /* padding-left: 0px;  */
-  width: 85%;
+/* 3. PAGE LAYOUT GRID
+Fixed-position grid below the nav bar. Two columns:
+sidebar (22% of viewport width) and right panel (remainder).
+Fixed position means neither column scrolls with the page -
+only the right-panel's inner overflow-y: scroll creates
+scrollable content.
+
+To change:
+- Adjust the 22% value to make the sidebar wider or narrower.
+  The right panel fills the rest automatically.
+- The top: 48px must match the nav bar height. */
+
+.page-layout {
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: 22% 1fr;
+  overflow: hidden;
 }
 
-.about-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #222;
-  margin: 0 0 16px;
-}
 
-.about-heading {
-  font-size: 18px;
-  font-weight: 700;
-  color: #444;
-  margin: 0 0 10px;
-  /* text-transform: uppercase; */
-  /* letter-spacing: 0.04em; */
-}
+/* 4. SIDEBAR
+Full-height left column. Uses flexbox column so
+inner content and footer can be distributed vertically.
+overflow-y: auto allows the sidebar to scroll if content
+overflows, though the compact glossary and how-to sizing
+is designed to avoid this on most screens.
 
-.about-section {
-  /* margin-bottom: 36px; */
-  padding-bottom: 36px;
-  width: 100%;
-  border-bottom: 1px solid #f0f0f0;
-}
+To change:
+- Sidebar background colour: change background below.
+- Sidebar padding: change the padding values below.
+- The sidebar width is controlled by 22% in .page-layout above. */
 
-.about-section:last-child {
-  border-bottom: none;
-}
-
-.about-note {
-  background: #fafafa;
-  border-radius: 6px;
-  padding: 16px 20px;
-  border: none;
-  display: none;
-}
-
-.about-text {
-  font-size: 14px;
-  line-height: 1.75;
-  color: #555;
-  margin: 0;
-  width: 85%;
-}
-
-.about-text b {
-  color: #333;
-}
-
-/* ---- Sidebar inner content: switchable per tab ---- */
-
-.sidebar-inner {
-  flex: 1;
+.sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e8e8e8;
+  padding: 24px 24px 0;
+  padding-right: 12px;
+  height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+}
+
+
+/* 5. SIDEBAR INNER CONTENT (per-tab switching)
+Each tab has its own .sidebar-inner div. The JS
+activateTab() function shows the matching inner div and hides
+the others by toggling .sidebar-inner-hidden. The flex: 1
+on .sidebar-inner allows it to fill remaining sidebar height
+above the footer.
+
+To change:
+- To add a new sidebar content block for a new tab, create a
+  new div with class="sidebar-inner sidebar-inner-hidden" in
+  index.html and wire it via data-sidebar on the tab button.
+- Do not remove display: none from sidebar-inner-hidden */
+
+.sidebar-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sidebar-inner-hidden {
@@ -632,7 +242,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 24px 8px;
 }
 
 .sidebar-placeholder p {
@@ -640,60 +250,145 @@ body {
   color: #ccc;
   text-align: center;
   line-height: 1.6;
+  margin: 0;
 }
 
-/* ---- Glossary accordion ---- */
+
+/* 6. SIDEBAR HOW-TO TEXT BLOCK
+Compact instructional block that sits above the
+glossary accordion in chart page sidebars. Font size and
+line height are kept small to leave room for the glossary
+below without requiring sidebar scroll.
+
+To change:
+- Edit the how-to text directly in index.html inside the
+  .sidebar-howto div for each sidebar (sidebar-timeline
+  and sidebar-heatmap).
+- To give the how-to block more vertical space, increase
+  the max-height below. You may need to reduce the glossary
+  .glossary-body.is-open max-height to compensate. */
+
+.sidebar-howto {
+  flex: 0 0 auto;
+  padding: 20px 15px;
+  padding-bottom: 10px;
+  margin-bottom: 5px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.sidebar-howto-heading {
+  font-size: 14px;
+  font-weight: 700;
+  /* text-transform: uppercase; */
+  /* letter-spacing: 0.07em; */
+  color: #555;
+  margin: 0 0 10px;
+  margin-bottom: 5px;
+}
+
+.sidebar-howto-list {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #555;
+  margin: 0;
+  text-align: justify;
+  padding: 5px 20px;
+  padding-bottom: 10px;
+}
+
+.sidebar-howto-list li {
+  margin-bottom: 4px;
+}
+
+.sidebar-howto-list li:last-child {
+  margin-bottom: 0;
+}
+
+
+/* 7. GLOSSARY ACCORDION
+Accordion where one card can be open at a time.
+Open state is controlled by JS (dashboard_V3.js) which toggles
+.is-open on .glossary-body and data-open="true" on .glossary-card.
+max-height transition on .glossary-body creates the expand/collapse
+animation without JS-driven height measurement.
+
+To change:
+- To add a new glossary term, copy a .glossary-card block in
+  index.html and update the button text and paragraph text.
+- To make cards taller when open, increase the max-height value
+  in .glossary-body.is-open. */
 
 .glossary-intro {
-  font-size: 14px;
-  color: #444;
-  margin: 0 0 20px 5px;
+  font-size: 12px;
+  color: #555;
+  margin: 0 0 6px;
+  padding: 0px 20px;
+  padding-bottom: 5px;
+  padding-left: 15px;
 }
 
 .glossary-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  width: 90%;
+  overflow-y: auto;
+  padding-right: 15px;
 }
 
-/* Each card is one accordion item */
 .glossary-card {
   border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  padding-top: 5px;
 }
 
 .glossary-card:first-of-type {
   border-top: 1px solid #f0f0f0;
 }
 
-/* Header button: full width, no browser button styling */
+/* Glossary button: full-width, no browser button chrome.
+   padding compressed from original to save vertical space
+   so the how-to block and all cards fit on screen together. */
 .glossary-header {
   width: 100%;
   text-align: left;
   background: none;
   border: none;
-  padding: 10px 10px;
+  /* padding: 2px 0; */
   font-size: 11px;
   font-weight: 600;
-  color: #444;
+  color: #555;
   cursor: pointer;
   line-height: 1.4;
-  margin-bottom: 10px;
-  border: 0.1px solid #451e77;
-  border-radius: 5px;
+  font-family: inherit;
 }
 
 .glossary-header:hover {
-  color: #222;
-  background-color: #f1e8fe;
+  color: #111;
 }
 
-/* Open card header shows active state */
+/* Open card header: tinted to indicate active state */
+/* .glossary-card[data-open="true"] .glossary-header {
+  color: #4a2671;
+} */
+
+/* Open card: light purple background across the full card.
+   Background covers both the header and the definition body.
+   To change the shade, update the background value. The current
+   colour is a 10% tint of the brand purple (#4a2671). */
+.glossary-card[data-open="true"] {
+  background: #f3eeff;
+  border-radius: 3px;
+}
+
+/* Open card header: darker purple text to contrast with background */
 .glossary-card[data-open="true"] .glossary-header {
-  color: #222;
+  color: #4a2671;
 }
 
-/* Body: fixed height so total glossary height stays constant.
-   80px fits all definitions -- increase if text wraps heavily. */
+/* Card body: hidden by default, expands to max-height on open.
+   max-height drives the CSS transition - set to the tallest
+   content height you expect, not the exact height. */
 .glossary-body {
   max-height: 0;
   overflow: hidden;
@@ -702,175 +397,509 @@ body {
 }
 
 .glossary-body.is-open {
-  max-height: 180px;
-  padding-bottom: 10px;
+  max-height: 100px;
   overflow-y: auto;
+  /* padding: 5px; */
+  padding: 0px 5px;
+  margin-right: 5px;
+  text-align: justify;
 }
 
 .glossary-body p {
-  font-size: 12px;
-  line-height: 1.65;
-  color: #777;
-  margin-bottom: 10px;
-  padding: 15px 10px;
-  padding-top: 0px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: #333;
+  margin-top: 4px;
+  /* font-weight: 500; */
+  /* margin-bottom: 10px; */
 }
 
-/* ---- Glossary (sidebar) ---- */
 
-/* .glossary-section {
-  position: relative;
-  flex: 1;
-  overflow-y: auto;
-  width: 90%;
-  padding-top: 44px;
-  padding-left: 20px;
+/* 8. SIDEBAR FOOTER
+   Pinned to the bottom of the sidebar using
+   margin-top: auto inside the flex column. Always visible
+   regardless of which tab is active.
+
+   To change:
+   - Update text content directly in index.html inside .sidebar-footer.
+   - To change the divider line colour, update border-top. */
+
+.sidebar-footer {
+  flex-shrink: 0;
+  margin-top: auto;
+  padding: 0px 0 16px;
+  border-top: 1px solid #f0f0f0;
 }
 
-.glossary-heading {
+.sidebar-footer p {
   font-size: 10px;
+  color: #bbb;
+  margin: 2px 0;
+  line-height: 1.4;
+}
+
+
+/* 9. RIGHT PANEL
+   The scrollable right column. overflow-y: scroll
+   (not auto) keeps the scrollbar track always visible so that
+   the layout width does not shift when content becomes tall
+   enough to require scroll. scrollbar-gutter: stable provides
+   the same reserved-gutter behaviour in modern browsers.
+
+   To change:
+   - Background colour of the content area: change background below.
+   - overflow-x: hidden prevents charts from breaking the layout
+     horizontally. Do not remove it. */
+
+.right-panel {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  height: 100%;
+  background: #f7f7f7;
+  scrollbar-gutter: stable;
+}
+
+
+/* 10. TAB PANELS (SHOW / HIDE)
+   Each tab panel is a full-width block child of
+   .right-panel. Only one is visible at a time. The JS function
+   activateTab() toggles .tab-panel-hidden to switch between them.
+
+   To change:
+   - Do not change display values here. Tab visibility is
+     controlled entirely by adding or removing .tab-panel-hidden. */
+
+.tab-panel {
+  display: block;
+  width: 100%;
+}
+
+.tab-panel-hidden {
+  display: none;
+}
+
+/* About page: full-width fixed panel, outside the sidebar grid */
+.about-page-panel {
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  background: #f7f7f7;
+  z-index: 1;
+}
+
+/* Chart layout hidden when About tab is active */
+.layout-hidden {
+  display: none;
+}
+
+
+/* 11. ABOUT PAGE LAYOUT
+   Two-column CSS grid that fills the full panel height.
+   Each column has independent overflow-y: auto so that if one
+   column's text is longer than the viewport, it scrolls
+   independently without affecting the other. On narrow screens
+   the media query below stacks columns vertically.
+
+   To change:
+   - To adjust column widths (e.g. wider left or wider right),
+     change the grid-template-columns values. Currently both
+     columns are equal width (1fr 1fr).
+   - To change the padding inside each column, edit .about-col.
+   - To add more text to the about page, edit index.html directly
+     inside .about-col-left or .about-col-right. */
+
+.about-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: calc(100vh - 48px);
+  overflow: hidden;
+  padding: 10px 15px;
+  background-color: #ffffff;
+}
+
+.about-col {
+  overflow-y: auto;
+  padding: 32px 28px 48px;
+  height: 100%;
+}
+
+.about-col-left {
+  border-right: 1px solid #efefef;
+  margin-left: 30px;
+  margin-right: 20px;
+}
+
+.about-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 16px;
+  line-height: 1.35;
+  margin-bottom: 15px;
+  /* margin-top: 15px; */
+}
+
+.about-heading {
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0 0 10px;
+}
+
+.about-section {
+  margin-bottom: 10px;
+  /* padding-bottom: 28px; */
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.about-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.about-text {
+  text-align: justify;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #555;
+  margin: 0 0 8px;
+  padding: 8px 5px;
+  padding-top: 0px;
+  /* margin-left: 20px;
+  margin-right: 30px; */
+}
+
+.about-text:last-child {
+  margin-bottom: 0;
+}
+
+.about-text a {
+  color: #4a2671;
+  text-decoration: none;
+}
+
+.about-text a:hover {
+  text-decoration: underline;
+}
+
+.list-items {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #555;
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.list-items li {
+  margin-top: 6px;
+}
+
+.list-items ul,
+.list-items ol {
+  margin: 2px 0 2px 0;
+  padding-left: 18px;
+}
+
+
+/* 12. CHART PANEL AND CHART SECTION CARDS
+   .chart-panel is the scrollable content container
+   within the timeline or heatmap tab panel. .chart-section wraps
+   each chart with a white card background. The chart containers
+   (#trend-container, #heatmap-container) are constrained to 100%
+   width so SVGs cannot exceed the available column width.
+
+   To change:
+   - Card background: change .chart-section background.
+   - Card spacing between sections: change .chart-section margin-bottom.
+   - Padding around chart: change .chart-section padding. */
+
+.chart-panel {
+  padding: 24px;
+  display: flex;
+  padding-right: 18px;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.chart-section {
+  background: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #e8e8e8;
+  padding: 24px 24px 28px;
+  overflow: hidden;
+}
+
+.chart-header {
+  margin-bottom: 8px;
+}
+
+.chart-label {
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: #999;
-  margin: 0 0 12px;
+  display: none;
 }
 
-.glossary-card {
-  border-bottom: 1px solid #f0f0f0;
-  padding: 10px 0;
+#trend-container,
+#heatmap-container {
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.glossary-card:last-child {
-  border-bottom: none;
+/* Chart containers: capped at 100% to prevent SVG overflow.
+   display: block removes inline-block descender gap below SVG. */
+
+#trend-container svg,
+#heatmap-container svg {
+  max-width: 100%;
+  display: block;
 }
 
-.glossary-term {
-  font-size: 11px;
-  font-weight: 700;
-  color: #444;
-  margin: 0 0 4px;
-}
 
-.glossary-def {
-  font-size: 11px;
-  line-height: 1.6;
-  color: #777;
-  margin: 0;
-} */
+/* 13. LOADING MESSAGE
+   Shown while fetch() calls are in flight. Hidden by
+   dashboard_V3.js once the charts have been appended to their
+   containers.
 
-/* ---- Loading message ---- */
+   To change:
+   - Edit the message text in index.html (the <p id="load-message">).
+   - Change font-size or colour below. */
 
 #load-message {
   font-size: 13px;
-  color: #aaa;
-  padding: 40px 0 20px;
+  color: #bbb;
+  margin: 0 0 16px;
+  padding: 0;
 }
 
-/* ---- Vertical layout: narrow viewport (768px and below) ---- */
+
+/* 14. UTILITY AND SHARED TEXT CLASSES
+   Small shared rules used across multiple sections.
+   Not tied to a specific component.
+
+   To change: These are safe to extend but avoid removing rules
+   that are referenced in index.html class attributes. */
+
+b {
+  font-weight: 600;
+}
+
+
+/* 15. KEYBOARD FOCUS RING (ACCESSIBILITY)
+   Provides a visible focus indicator for all
+   interactive elements when navigated by keyboard (Tab key).
+   :focus-visible is used instead of :focus so that mouse clicks
+   do not trigger the ring - only keyboard navigation does.
+   The outline colour matches the brand purple for consistency.
+
+   To change:
+   - outline colour: change the #4a2671 value below.
+   - outline weight: change the 2px value.
+   - To disable for specific elements, add outline: none on
+     that element with a more specific selector. */
+
+button:focus-visible,
+select:focus-visible,
+input[type="date"]:focus-visible,
+a:focus-visible,
+[tabindex="0"]:focus-visible {
+  outline: 2px solid #4a2671;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+
+/* 16. RESPONSIVE OVERRIDES (max-width 768px)
+   At 768px and below the fixed two-column layout
+   switches to a stacked single-column layout. The sidebar becomes
+   a horizontal strip at the top, the right panel fills full width
+   and scrolls normally as part of the page (not independently).
+   The about page two-column grid also stacks to a single column.
+   Nav bar tabs wrap below the brand and logo row.
+
+   To change:
+   - Breakpoint: change 768px to a different value if you need
+     the responsive switch to happen at a different screen width.
+   - Sidebar strip height: the sidebar switches from vertical to
+     horizontal. Adjust padding to control how tall the strip is. */
 
 @media (max-width: 768px) {
 
+  /* Unlock page scroll on narrow screens */
   body {
     height: auto;
     overflow: auto;
   }
 
-  /* Stack sidebar above right panel in a single column */
+  /* Stacked single column: right-panel (chart) first via order,
+     sidebar second. position: static unlocks natural page scroll
+     so the user can scroll down past the chart to reach the sidebar. */
   .page-layout {
     position: static;
-    top: auto;
-    left: auto;
-    right: auto;
-    bottom: auto;
     display: flex;
     flex-direction: column;
     overflow: visible;
-    padding-top: 48px;   /* clears fixed nav */
+    padding-top: 48px;
+    height: auto;
   }
 
-  /* Sidebar: horizontal strip across full width, auto height */
+  /* Sidebar: moved below the chart using order.
+     Right-panel (chart content) gets order 1 so it
+     renders at the top. Sidebar gets order 2 so it
+     appears below after the user has seen the chart.
+     This requires no HTML change - CSS order handles it. */
   .sidebar {
+    order: 2;
     height: auto;
     overflow-y: visible;
     border-right: none;
-    border-bottom: 1px solid #e8e8e8;
-    padding: 16px 20px;
-    flex-direction: row;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 16px;
+    border-top: 1px solid #e8e8e8;
+    padding: 24px 20px 32px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+    box-sizing: border-box;
   }
 
-  .sidebar-title-block {
-    flex: 0 0 auto;
+  /* Right panel renders first (chart at top) */
+  .right-panel {
+    order: 1;
   }
 
-  /* Glossary collapses to hidden on mobile sidebar -- too much height */
-  .sidebar-inner {
-    display: none;
+  /* Sidebar inner content: shown below the chart on narrow screens.
+     overflow-y visible since the sidebar is now in normal page flow
+     and the page itself scrolls rather than the sidebar. */
+  .sidebar-inner:not(.sidebar-inner-hidden) {
+    display: flex;
+    overflow-y: visible;
   }
 
+  /* Glossary section: allow natural height on narrow screens */
+  .glossary-section {
+    overflow-y: visible;
+  }
+
+  /* Glossary body: increase max-height on narrow screens since there
+     is no height constraint from the fixed sidebar column anymore. */
+  .glossary-body.is-open {
+    max-height: 200px;
+  }
+
+  /* Footer sits naturally at the end of the sidebar flex column */
   .sidebar-footer {
-    flex: 0 0 100%;
-    padding-top: 0;
-    margin-top: 0;
-    border-top: none;
+    flex: 0 0 auto;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #f0f0f0;
   }
 
-  /* Right panel fills full width, scrolls naturally with page */
+  /* Right panel fills full width, scrolls with the page */
   .right-panel {
     overflow: visible;
     height: auto;
     width: 100%;
   }
 
-  /* Chart cards: full bleed on narrow screens */
+  /* Chart cards: tighter padding on small screens */
   .chart-section {
+    padding: 14px 12px 20px;
+    padding-top: 60px;
     border-radius: 0;
     border-left: none;
     border-right: none;
-    padding: 16px 12px 24px;
-    margin-bottom: 16px;
-    
+    margin-bottom: 12px;
   }
 
-  /* Charts fill available width at all times */
-  #trend-container,
-  #heatmap-container {
-    width: 100%;
-    overflow: auto;   /* allows chart to scroll horizontally if it must */
+  /* About page: stack columns vertically */
+  .about-two-col {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
   }
 
-  /* About wrapper: tighter padding on narrow screens */
-  .about-wrapper {
-    padding: 24px 20px 48px;
+  .about-col {
+    overflow-y: visible;
+    height: auto;
+    padding: 24px 0px 32px;
   }
 
-  /* Nav: tighter on mobile */
+  .about-col-left {
+    border-right: none;
+    border-bottom: 1px solid #efefef;
+    margin-left: 10px;
+    margin-right: 10px;
+  }
+
+  .about-title {
+    margin-top: 50px;
+    }
+
+  /* Nav tabs wrap below brand and logos on narrow screens */
   .tab-nav {
-    padding: 0 16px;
+    padding: 0 14px;
   }
 
-  .tab-brand-note {
-    display: none;    /* saves nav space on very narrow screens */
+  .tab-nav-inner {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 0;
+    gap: 6px;
   }
-}
 
-/* ---- Very narrow: 375px phones ---- */
+  /* Brand and logos share the first row */
+  .nav-brand-block {
+    order: 1;
+    flex: 0 0 auto;
+  }
 
-@media (max-width: 420px) {
+  .nav-logos {
+    order: 2;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  /* Tabs fill a second row below brand and logos */
+  .tab-buttons {
+    order: 3;
+    flex: 0 0 100%;
+    padding-left: 0;
+    padding-top: 15px;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
 
   .tab-btn {
     font-size: 12px;
-    padding: 6px 10px;
+    padding: 5px 10px;
+    white-space: nowrap;
+  }
+}
+
+/* Very narrow screens (375px phones) */
+@media (max-width: 420px) {
+
+  .tab-brand {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .about-text,
+  .list-items {
+    font-size: 12px;
   }
 
   .chart-section {
-    padding: 12px 8px 20px;
-  }
-
-  .about-text {
-    font-size: 12px;
+    padding: 10px 8px 16px;
+    padding-top: 60px;
   }
 }

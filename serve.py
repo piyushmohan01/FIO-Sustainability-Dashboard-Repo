@@ -10,10 +10,6 @@ import os
 import sys
 
 PORT = 8000
-
-# Change working directory to the folder containing this script.
-# Ensures relative paths in fetch() resolve correctly regardless
-# of where the terminal is when serve.py is called.
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):

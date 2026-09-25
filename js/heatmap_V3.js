@@ -1,267 +1,284 @@
-// heatmap.js -- HM-V2
-// Heatmap chart for FIO Food environmental impact dashboard.
-// Receives weekly bin data from L2a_weekly_updated.json (no daily file).
-// Returns a DOM node. Call: createHeatmap(weeklyData, { width, onStats }).
+/*
+- heatmap_V3.js
+- Renders the category-level environmental footprint heatmap.
+- Reads weekly bin data from L2a_weekly_updated.json (weekly only).
+- Called by dashboard_V3.js as:
+- createHeatmap(weeklyData, { width, onStats })
+- Returns a DOM node appended to #heatmap-container.
+ *
+- Section map:
+- 1a. Config METRICS, EVENTS_BY_GROUP, LAYOUT constants
+- 1b. Parse Data maps, date helpers, weekly structures
+- 1c. Helpers Row geometry, value formatters
+- 1d. ControlsHeading, description, ctrlWrapper, rows, legend block
+- 1e. Gradient legend HTML colour scale legend between controls and chart
+- 1f. SVG shell Sticky headerSVG + scrolling bodySVG
+- 1g. RedrawFull redraw on any state change
+- 1h. ResizeResizeObserver - keeps chart inside container
+ */
 
-function createHeatmap(weeklyData, { width = 900, onStats = null } = {}) {
 
-  // 1a: Config
+function createHeatmap(weeklyData, { width = 960, onStats = null } = {}) {
+
+
+  /* 1a. CONFIG
+  All configuration constants in one block.
+  LAYOUT controls pixel dimensions. METRICS defines column
+  names, colour interpolators, and units per metric.
+  EVENTS_BY_GROUP defines event overlay markers by group.
+  State variables track the current user selection.
+
+  To change:
+  - Metric colours/interpolators: find the metric key and
+    update interpolator or pkg_interpolator.
+  - Event dates: update date strings in EVENTS_BY_GROUP.
+    Currently 2023 to match dummy data. Change to 2022
+    when data is connected.
+  - Chart height range: update MIN_CHART_H and MAX_CHART_H. */
+
+  const LAYOUT = {
+    MARGIN: { top: 56, right: 15, bottom: 56, left: 154 },
+    HEADER_H: 56,    // must match MARGIN.top exactly
+    MIN_CHART_H: 270,
+    MAX_CHART_H: 1200,
+    GAP: 2,     // px gap between rows
+    MONTH_GAP: 0,     // px gap between month columns (0 = none)
+    ROW_GROUP_SIZE: 5,     // divider drawn every N rows
+    MIN_ROW_H: 8,     // minimum row height in px
+    RANK_AXIS_PAD: 48,    // space on right for rank numbers
+    MISSING_FILL: '#f5f5f5',
+    DIM_OPACITY: 1,     // 1 = no row dimming on hover
+  };
+
+  const { MARGIN } = LAYOUT;
+
+  // MIN_CHART_WIDTH: chart never renders narrower than this.
+  // Below this viewport width horizontal scrolling kicks in.
+  const MIN_CHART_WIDTH = 760;
+
+  let totalWidth = Math.max(width, MIN_CHART_WIDTH);
+  let W          = totalWidth - MARGIN.left - MARGIN.right;
 
   const METRICS = {
     GHGE: {
-      col                 : "roll7_GHGE_SF",
-      pkg_col             : "roll7_GHGE_perkg",
-      weekly_col          : "GHGE_weekly_mean",
-      weekly_pkg_col      : "GHGE_perkg_weekly_mean",
-      weekly_rank_col     : "GHGE_weekly_rank",
-      annual_rank_col     : "GHGE_annual_rank",
-      pkg_annual_rank_col : "GHGE_perkg_annual_rank",
-      min_col             : "GHGE_annual_min",
-      max_col             : "GHGE_annual_max",
-      pkg_min_col         : "GHGE_perkg_annual_min",
-      pkg_max_col         : "GHGE_perkg_annual_max",
-      pkg_max_abs_dev_col : "GHGE_perkg_max_abs_dev",
-      mean_col            : "GHGE_annual_mean",
-      pkg_mean_col        : "GHGE_perkg_annual_mean",
-      share_col           : "GHGE_annual_share",
-      pct_col             : "GHGE_pct_from_annual_mean",
-      pkg_pct_col         : "GHGE_perkg_pct_from_annual_mean",
-      label               : "GHGE Sales Footprint (kg CO\u2082-eq/day)",
-      pkg_label           : "GHGE per kg sold (kg CO\u2082-eq/kg)",
-      short               : "GHGE",
-      unit                : "kg CO\u2082-eq/day",
-      pkg_unit            : "kg CO\u2082-eq/kg",
+      weekly_col          : 'GHGE_weekly_mean',
+      weekly_pkg_col      : 'GHGE_perkg_weekly_mean',
+      weekly_rank_col     : 'GHGE_weekly_rank',
+      annual_rank_col     : 'GHGE_annual_rank',
+      pkg_annual_rank_col : 'GHGE_perkg_annual_rank',
+      min_col             : 'GHGE_annual_min',
+      max_col             : 'GHGE_annual_max',
+      pkg_min_col         : 'GHGE_perkg_annual_min',
+      pkg_max_col         : 'GHGE_perkg_annual_max',
+      pkg_max_abs_dev_col : 'GHGE_perkg_max_abs_dev',
+      mean_col            : 'GHGE_annual_mean',
+      pkg_mean_col        : 'GHGE_perkg_annual_mean',
+      share_col           : 'GHGE_annual_share',
+      pct_col             : 'GHGE_pct_from_annual_mean',
+      pkg_pct_col         : 'GHGE_perkg_pct_from_annual_mean',
+      label               : 'GHGE Sales Footprint (kg CO\u2082-eq/day)',
+      pkg_label           : 'GHGE per kg sold (kg CO\u2082-eq/kg)',
+      short               : 'GHGE',
+      unit                : 'kg CO\u2082-eq/day',
+      pkg_unit            : 'kg CO\u2082-eq/kg',
       interpolator        : d3.interpolateYlGn,
-      pkg_interpolator    : t => (t < 0.5
-        ? d3.interpolateRgb("#f4baf6", "#ffffff")(t * 2)
-        : d3.interpolateRgb("#ffffff", "#2ca02c")((t - 0.5) * 4)),
+      pkg_interpolator    : function (t) {
+        return t < 0.5
+          ? d3.interpolateRgb('#f4baf6', '#ffffff')(t * 2)
+          : d3.interpolateRgb('#ffffff', '#2ca02c')((t - 0.5) * 4);
+      },
     },
     LU: {
-      col                 : "roll7_LU_SF",
-      pkg_col             : "roll7_LU_perkg",
-      weekly_col          : "LU_weekly_mean",
-      weekly_pkg_col      : "LU_perkg_weekly_mean",
-      weekly_rank_col     : "LU_weekly_rank",
-      annual_rank_col     : "LU_annual_rank",
-      pkg_annual_rank_col : "LU_perkg_annual_rank",
-      min_col             : "LU_annual_min",
-      max_col             : "LU_annual_max",
-      pkg_min_col         : "LU_perkg_annual_min",
-      pkg_max_col         : "LU_perkg_annual_max",
-      pkg_max_abs_dev_col : "LU_perkg_max_abs_dev",
-      mean_col            : "LU_annual_mean",
-      pkg_mean_col        : "LU_perkg_annual_mean",
-      share_col           : "LU_annual_share",
-      pct_col             : "LU_pct_from_annual_mean",
-      pkg_pct_col         : "LU_perkg_pct_from_annual_mean",
-      label               : "Land Use Sales Footprint (m\u00b2\u00b7yr/day)",
-      pkg_label           : "Land Use per kg sold (m\u00b2\u00b7yr/kg)",
-      short               : "Land Use",
-      unit                : "m\u00b2\u00b7yr/day",
-      pkg_unit            : "m\u00b2\u00b7yr/kg",
+      weekly_col          : 'LU_weekly_mean',
+      weekly_pkg_col      : 'LU_perkg_weekly_mean',
+      weekly_rank_col     : 'LU_weekly_rank',
+      annual_rank_col     : 'LU_annual_rank',
+      pkg_annual_rank_col : 'LU_perkg_annual_rank',
+      min_col             : 'LU_annual_min',
+      max_col             : 'LU_annual_max',
+      pkg_min_col         : 'LU_perkg_annual_min',
+      pkg_max_col         : 'LU_perkg_annual_max',
+      pkg_max_abs_dev_col : 'LU_perkg_max_abs_dev',
+      mean_col            : 'LU_annual_mean',
+      pkg_mean_col        : 'LU_perkg_annual_mean',
+      share_col           : 'LU_annual_share',
+      pct_col             : 'LU_pct_from_annual_mean',
+      pkg_pct_col         : 'LU_perkg_pct_from_annual_mean',
+      label               : 'Land Use Sales Footprint (m\u00b2\u00b7yr/day)',
+      pkg_label           : 'Land Use per kg sold (m\u00b2\u00b7yr/kg)',
+      short               : 'Land Use',
+      unit                : 'm\u00b2\u00b7yr/day',
+      pkg_unit            : 'm\u00b2\u00b7yr/kg',
       interpolator        : d3.interpolateYlOrBr,
-      pkg_interpolator    : t => (t < 0.5
-        ? d3.interpolateRgb("#a9d8e9", "#ffffff")(t * 2)
-        : d3.interpolateRgb("#ffffff", "#ff7f0e")((t - 0.5) * 4)),
+      pkg_interpolator    : function (t) {
+        return t < 0.5
+          ? d3.interpolateRgb('#a9d8e9', '#ffffff')(t * 2)
+          : d3.interpolateRgb('#ffffff', '#ff7f0e')((t - 0.5) * 4);
+      },
     },
     WU: {
-      col                 : "roll7_WU_SF",
-      pkg_col             : "roll7_WU_perkg",
-      weekly_col          : "WU_weekly_mean",
-      weekly_pkg_col      : "WU_perkg_weekly_mean",
-      weekly_rank_col     : "WU_weekly_rank",
-      annual_rank_col     : "WU_annual_rank",
-      pkg_annual_rank_col : "WU_perkg_annual_rank",
-      min_col             : "WU_annual_min",
-      max_col             : "WU_annual_max",
-      pkg_min_col         : "WU_perkg_annual_min",
-      pkg_max_col         : "WU_perkg_annual_max",
-      pkg_max_abs_dev_col : "WU_perkg_max_abs_dev",
-      mean_col            : "WU_annual_mean",
-      pkg_mean_col        : "WU_perkg_annual_mean",
-      share_col           : "WU_annual_share",
-      pct_col             : "WU_pct_from_annual_mean",
-      pkg_pct_col         : "WU_perkg_pct_from_annual_mean",
-      label               : "Water Use Sales Footprint (L/day)",
-      pkg_label           : "Water Use per kg sold (L/kg)",
-      short               : "Water Use",
-      unit                : "L/day",
-      pkg_unit            : "L/kg",
+      weekly_col          : 'WU_weekly_mean',
+      weekly_pkg_col      : 'WU_perkg_weekly_mean',
+      weekly_rank_col     : 'WU_weekly_rank',
+      annual_rank_col     : 'WU_annual_rank',
+      pkg_annual_rank_col : 'WU_perkg_annual_rank',
+      min_col             : 'WU_annual_min',
+      max_col             : 'WU_annual_max',
+      pkg_min_col         : 'WU_perkg_annual_min',
+      pkg_max_col         : 'WU_perkg_annual_max',
+      pkg_max_abs_dev_col : 'WU_perkg_max_abs_dev',
+      mean_col            : 'WU_annual_mean',
+      pkg_mean_col        : 'WU_perkg_annual_mean',
+      share_col           : 'WU_annual_share',
+      pct_col             : 'WU_pct_from_annual_mean',
+      pkg_pct_col         : 'WU_perkg_pct_from_annual_mean',
+      label               : 'Water Use Sales Footprint (L/day)',
+      pkg_label           : 'Water Use per kg sold (L/kg)',
+      short               : 'Water Use',
+      unit                : 'L/day',
+      pkg_unit            : 'L/kg',
       interpolator        : d3.interpolateYlGnBu,
-      pkg_interpolator    : t => (t < 0.5
-        ? d3.interpolateRgb("#f6b4d1", "#ffffff")(t * 2)
-        : d3.interpolateRgb("#ffffff", "#88bced")((t - 0.5) * 8)),
+      pkg_interpolator    : function (t) {
+        return t < 0.5
+          ? d3.interpolateRgb('#f6b4d1', '#ffffff')(t * 2)
+          : d3.interpolateRgb('#ffffff', '#88bced')((t - 0.5) * 8);
+      },
     },
   };
 
   const METRIC_OPTIONS = [
-    { key: "GHGE", display: "GHGE (Greenhouse Gas Emissions)" },
-    { key: "LU",   display: "LU (Land Use)"                   },
-    { key: "WU",   display: "WU (Water Use)"                  },
+    { key: 'GHGE', display: 'GHGE (Greenhouse Gas Emissions)' },
+    { key: 'LU',   display: 'LU (Land Use)'                   },
+    { key: 'WU',   display: 'WU (Water Use)'                  },
   ];
 
-  // CAT_GAPS: breathing gap in px between row groups per N value
-  const CAT_GAPS = { 10: 0, 20: 4, 30: 5, 40: 7, 65: 10 };
+  // Row gap per N. Zero gap for 10, increasing gaps for larger sets.
+  const CAT_GAPS = { 10: 0, 15: 3, 30: 5};
 
   // Event dates match 2023 dummy data.
-  // Update to 2022 when real retailer data is connected.
   const EVENTS_BY_GROUP = {
     public_holidays: [
-      // { date: "2023-01-03", label: "New Year's Day BH"  },
-      // { date: "2023-04-15", label: "Good Friday BH"     },
-      { date: "2023-04-18", label: "Easter Monday BH"   },
-      { date: "2023-05-02", label: "Early May BH"       },
-      // { date: "2023-06-02", label: "Spring BH"          },
-      { date: "2023-06-03", label: "Jubilee BH"         },
-      { date: "2023-08-29", label: "Summer BH"          },
-      { date: "2023-09-19", label: "State Funeral BH"   },
-      { date: "2023-12-26", label: "Boxing Day BH"      },
-      // { date: "2023-12-27", label: "Christmas Day BH"   },
+      {date: '2022-04-18', label: 'Easter Monday BH'},
+      {date: '2022-05-02', label: 'Early May BH'},
+      {date: '2022-06-02', label: 'Spring/Jubilee BH'},
+      {date: '2022-08-29', label: 'Summer BH'},
+      {date: '2022-09-19', label: "Queen Funeral BH"},
+      {date: '2022-12-27', label: 'Christmas Day BH'},
     ],
     cultural_events: [
-      { date: "2023-03-27", label: "Mother's Day"       },
-      { date: "2023-04-02", label: "Ramadan Start"      },
-      { date: "2023-04-15", label: "Good Friday"        },
-      // { date: "2023-04-18", label: "Easter Monday"      },
-      { date: "2023-05-02", label: "Ramadan End"        },
-      { date: "2023-06-19", label: "Father's Day"       },
-      { date: "2023-10-24", label: "Diwali"             },
-      { date: "2023-10-31", label: "Halloween"          },
-      { date: "2023-12-25", label: "Christmas"          },
-      { date: "2023-12-31", label: "New Year's Eve"          },
+      {date: '2022-03-27', label: "Mother's Day"},
+      {date: '2022-04-02', label: 'Ramadan S'},
+      {date: '2022-04-15', label: 'Good Friday'},
+      {date: '2022-05-02', label: 'Ramadan E'},
+      {date: '2022-06-19', label: "Father's Day"},
+      {date: '2022-10-24', label: 'Diwali'},
+      {date: '2022-10-31', label: 'Halloween'},
+      {date: '2022-12-25', label: 'Christmas'},
+      {date: '2022-12-31', label: "New Year's Eve"},
     ],
     school_calendar: [
-      { date: "2023-02-19", label: "Spring Half Term S"             },
-      { date: "2023-02-27", label: "Spring Half Term E"             },
-      { date: "2023-04-04", label: "Easter Holidays S"             },
-      { date: "2023-04-14", label: "Easter Holidays E"             },
-      { date: "2023-05-28", label: "Summer Half Term S"             },
-      { date: "2023-06-05", label: "Summer Half Term E"             },
-      { date: "2023-07-23", label: "Summer Holidays S"             },
-      { date: "2023-09-04", label: "Summer Holidays E"             },
-      { date: "2023-10-22", label: "Autumn Half Term S"             },
-      { date: "2023-10-30", label: "Autumn Half Term E"             },
-      { date: "2023-12-17", label: "Christmas Holidays S"             },
-      { date: "2023-12-30", label: "Christmas Holidays E"             },
+      {date: "2022-02-19", label: "Spring Half Term S"},
+      {date: "2022-02-27", label: "Spring Half Term E"},
+      {date: "2022-04-04", label: "Easter Holidays S"},
+      {date: "2022-04-14", label: "Easter Holidays E"},
+      {date: "2022-05-28", label: "Summer Half Term S"},
+      {date: "2022-06-05", label: "Summer Half Term E"},
+      {date: "2022-07-23", label: "Summer Holidays S"},
+      {date: "2022-09-04", label: "Summer Holidays E"},
+      {date: "2022-10-22", label: "Autumn Half Term S"},
+      {date: "2022-10-30", label: "Autumn Half Term E"},
+      {date: "2022-12-17", label: "Christmas Holidays S"},
+      {date: "2022-12-30", label: "Christmas Holidays E"},
     ],
     weather_events: [
-      { date: "2023-06-16", label: "HW (3 days)"        },
-      { date: "2023-07-18", label: "HW (3 days)"        },
-      { date: "2023-08-12", label: "HW (7 days)"        },
+      {date: '2022-06-16', label: 'June HW (3 days)'},
+      {date: '2022-07-18', label: 'July HW (4 days)'},
+      {date: '2022-08-12', label: 'August HW (5 days)'},
     ],
     sporting_events: [
-      // { date: "2023-02-05", label: "Six Nations S"               },
-      { date: "2023-03-19", label: "Six Nations E"               },
-      // { date: "2023-07-06", label: "UEFA Women's Euro S"               },
-      { date: "2023-07-31", label: "UEFA Women's Euro E"               },
-      // { date: "2023-07-28", label: "Commonwealth Games S"               },
-      { date: "2023-08-08", label: "CW Games E"               },
-      // { date: "2023-11-20", label: "FIFA World Cup S"               },
-      { date: "2023-12-18", label: "FIFA World Cup E"               },
+      // {date: "2022-02-05", label: "Six Nations S"},
+      {date: "2022-03-19", label: "Six Nations E"},
+      // {date: "2022-07-06", label: "UEFA Women's Euro S"},
+      {date: "2022-07-31", label: "UEFA WE E"},
+      // {date: "2022-07-28", label: "Commonwealth Games S"},
+      {date: "2022-08-08", label: "CG Games E"},
+      // {date: "2022-11-20", label: "FIFA World Cup S"},
+      {date: "2022-12-18", label: "FIFA WC E"},
     ],
   };
 
   const EVENT_FOOTNOTES = {
-    public_holidays : "BH = Bank Holiday",
-    cultural_events : "",
-    school_calendar : "SH = School Holidays  S = Period start  E = Period end",
-    weather_events  : "HW = Heatwave  number in brackets = duration in days",
-    sporting_events : "E = Period end  CW = Commonwealth",
+    public_holidays : 'BH = Bank Holiday',
+    cultural_events : 'S = Period start  E = Period end',
+    school_calendar : 'SH = School Holidays  S = Period start  E = Period end',
+    weather_events  : 'HW = Heatwave number in brackets = duration in days',
+    sporting_events : 'CG = Commonwealth Games  ' +
+                      '  WC = World Cup  WE = UEFA Women\'s Euro  ' +
+                      'S = Period start  E = Period end',
   };
 
+
   const EVENT_GROUP_OPTIONS = [
-    { key: "public_holidays", display: "Public Holidays" },
-    { key: "cultural_events", display: "Cultural Events" },
-    { key: "school_calendar", display: "School Calendar" },
-    { key: "weather_events",  display: "Weather Events"  },
-    { key: "sporting_events", display: "Sporting Events" },
+    { key: 'public_holidays', display: 'Public Holidays' },
+    { key: 'cultural_events', display: 'Cultural Events' },
+    { key: 'school_calendar', display: 'School Calendar' },
+    { key: 'weather_events',  display: 'Weather Events'  },
+    { key: 'sporting_events', display: 'Sporting Events' },
   ];
 
-  const MIN_CHART_H    = 250;
-  const MAX_CHART_H    = 1200;
-  const GAP            = 2;
-  const MONTH_GAP      = 0;
-  const ROW_GROUP_SIZE = 5;
-  const MIN_ROW_H      = 8;
-  const DIM_OPACITY    = 1;        // 1 = no row dimming on hover
-  const MISSING_FILL   = "#f5f5f5";
-  const LABEL_WIDTH    = 154;
-  const RANK_AXIS_PAD  = 130;       // reserved on right for rank numbers
-  const MARGIN = { top: 62, right: RANK_AXIS_PAD, bottom: 72, left: LABEL_WIDTH };
+  const CAT_OPTIONS = [10, 15, 30];
 
-  const CAT_OPTIONS = [10, 30, 65];
-
-  let activeMetric     = "GHGE";
-  let activeN          = 30;
+  let activeMetric     = 'GHGE';
+  let activeN          = 15;
   let activePkg        = false;
-  let activeEventGroup = "public_holidays";
+  let activeEventGroup = 'public_holidays';
 
 
-  // 1b: Parse 
-  const parseDate = d3.timeParse("%Y-%m-%d");
-  const fmtDate   = d3.timeFormat("%d %b %Y");
-  const fmtMonth  = d3.timeFormat("%b");
-  const fmtInput  = d3.timeFormat("%Y-%m-%d");
+  /* 1b. PARSE
+  Builds lookup Maps from the flat weeklyData array.
+  weeklyMap: cat -> week_start -> row  for fast cell lookups.
+  annualRef: cat -> first row, which carries all annual_* fields.
+  allWeekStrs is sorted so column order is always chronological.
 
-  // Weekly-only: allCats and annualRef both derived from weeklyData
-  // const allCats = Array.from(new Set(weeklyData.map(r => r.lcfs_cat)));
+  To change:
+  - The column names used to build the maps are not hardcoded
+    here - they come from METRICS above.
+  - If the JSON key for the category label changes from
+    lcfs_cat, update the .map(r => r.lcfs_cat) references. */
 
-  // Filter removes undefined/null entries from malformed rows
-  const allCats = Array.from(new Set(weeklyData.map(r => r.lcfs_cat).filter(Boolean)));
+  const parseDate = d3.timeParse('%Y-%m-%d');
+  const fmtDate   = d3.timeFormat('%d %b %Y');
+  const fmtMonth  = d3.timeFormat('%b');
+  const fmtInput  = d3.timeFormat('%Y-%m-%d');
+
+  const allCats = Array.from(new Set(weeklyData.map(function (r) {
+    return r.lcfs_cat;
+  })));
 
   const weeklyMap = new Map();
   const annualRef = new Map();
-  allCats.forEach(cat => weeklyMap.set(cat, new Map()));
+  allCats.forEach(function (cat) { weeklyMap.set(cat, new Map()); });
 
-  weeklyData.forEach(r => {
+  weeklyData.forEach(function (r) {
     if (!weeklyMap.has(r.lcfs_cat)) return;
     weeklyMap.get(r.lcfs_cat).set(r.week_start, r);
-    // first row per category carries all annual_* reference values
     if (!annualRef.has(r.lcfs_cat)) annualRef.set(r.lcfs_cat, r);
   });
 
-  const allWeekStrs = [...new Set(weeklyData.map(r => r.week_start))].sort();
-  const dateMinStr  = allWeekStrs[0];
-  const dateMaxStr  = allWeekStrs[allWeekStrs.length - 1];
+  const allWeekStrs = Array.from(
+    new Set(weeklyData.map(function (r) { return r.week_start; }))
+  ).sort();
 
-  // calendar_month per week: pre-computed in Python as 0-indexed month
+  const dateMinStr = allWeekStrs[0];
+  const dateMaxStr = allWeekStrs[allWeekStrs.length - 1];
+
   const weekMonthMap = new Map();
-  weeklyData.forEach(r => {
+  weeklyData.forEach(function (r) {
     if (!weekMonthMap.has(r.week_start))
       weekMonthMap.set(r.week_start, r.calendar_month);
   });
 
-  // Grand annual means: sum of per-category annual means for SF (= total annual SF),
-  // and mean across categories for per-kg. Computed once at build time.
-  // Used as reference values in the legend block and updated per metric in redraw().
-  function hmStatFmt(v) {
-    if (v == null || isNaN(v)) return "--";
-    const abs = Math.abs(v);
-    if (abs >= 1e6) return d3.format(".2f")(v / 1e6) + " million";
-    if (abs >= 1e3) return d3.format(".0f")(v / 1e3) + "K";
-    if (abs >= 10)  return d3.format(".1f")(v);
-    return d3.format(".2f")(v);
-  }
-
-  const grandAnnualSF  = {};
-  const grandAnnualPkg = {};
-  for (const m of Object.keys(METRICS)) {
-    const mcfg = METRICS[m];
-    let sfSum = 0, pkgSum = 0, n = 0;
-    allCats.forEach(cat => {
-      const ref = annualRef.get(cat);
-      if (!ref) return;
-      sfSum  += ref[mcfg.mean_col]     || 0;
-      pkgSum += ref[mcfg.pkg_mean_col] || 0;
-      n++;
-    });
-    grandAnnualSF[m]  = sfSum;
-    grandAnnualPkg[m] = n > 0 ? pkgSum / n : 0;
-  }
-
-  // 1c: Helpers 
-
-  // Jan-01 anchored week start -- mirrors Python get_week_start() exactly
+  // Jan-01 anchored week start - mirrors Python get_week_start()
   function getJanAnchoredWeekStart(date) {
     const jan1      = new Date(date.getFullYear(), 0, 1);
     jan1.setHours(0, 0, 0, 0);
@@ -269,465 +286,555 @@ function createHeatmap(weeklyData, { width = 900, onStats = null } = {}) {
     return new Date(jan1.getTime() + Math.floor(dayOfYear / 7) * 7 * 86400000);
   }
 
-  // calendar_month from pre-computed weekMonthMap; fallback to JS month
-  function getDisplayMonth(date) {
-    const wk = fmtInput(date);
-    return weekMonthMap.has(wk) ? weekMonthMap.get(wk) : date.getMonth();
-  }
+  /* 1c. HELPERS
+  Row geometry functions and value formatters.
+  computeRowYStarts() returns an array of y positions for
+  each category row, accounting for row gaps and group gaps.
+  findRowIdx() maps a mouse y-coordinate back to a row index.
+  valFormatter uses explicit math to avoid d3 SI rounding.
+
+  To change:
+  - Row group gap size: update CAT_GAPS in 1a.
+  - Number format precision: edit the d3.format strings. */
 
   function computeRowYStarts(N, ROW_H, groupGapPx) {
-    let y = 0;
-    return Array.from({ length: N }, (_, i) => {
-      const start = y;
-      y += ROW_H + GAP;
-      if ((i + 1) % ROW_GROUP_SIZE === 0 && i < N - 1) y += groupGapPx;
+    var y = 0;
+    return Array.from({ length: N }, function (_, i) {
+      var start = y;
+      y += ROW_H + LAYOUT.GAP;
+      if ((i + 1) % LAYOUT.ROW_GROUP_SIZE === 0 && i < N - 1)
+        y += groupGapPx;
       return start;
     });
   }
 
   function findRowIdx(my, rowYStarts, ROW_H) {
-    for (let i = 0; i < rowYStarts.length; i++) {
+    for (var i = 0; i < rowYStarts.length; i++) {
       if (my >= rowYStarts[i] && my < rowYStarts[i] + ROW_H) return i;
     }
     return -1;
   }
 
-  // valFormatter: explicit math avoids d3 SI rounding at the 1e6 boundary
   function valFormatter(v) {
-    if (v === null || v === undefined || isNaN(v)) return "\u2014";
-    const abs = Math.abs(v);
-    if (abs >= 1e9) return d3.format(".2f")(v / 1e9) + " billion";
-    if (abs >= 1e6) return d3.format(".2f")(v / 1e6) + " million";
-    if (abs >= 1e3) return d3.format(".0f")(v / 1e3) + "K";
-    if (abs >= 10)  return d3.format(".1f")(v);
-    return d3.format(".2f")(v);
+    if (v == null || isNaN(v)) return '\u2014';
+    var abs = Math.abs(v);
+    if (abs >= 1e9) return d3.format('.2f')(v / 1e9) + ' billion';
+    if (abs >= 1e6) return d3.format('.2f')(v / 1e6) + ' million';
+    if (abs >= 1e3) return d3.format('.0f')(v / 1e3) + 'K';
+    if (abs >= 10)  return d3.format('.1f')(v);
+    return d3.format('.2f')(v);
   }
 
   function pctFormatter(v) {
-    if (v === null || v === undefined || isNaN(v)) return "\u2014";
-    return (v >= 0 ? "+" : "") + d3.format(".1f")(v) + "%";
+    if (v == null || isNaN(v)) return '\u2014';
+    return (v >= 0 ? '+' : '') + d3.format('.1f')(v) + '%';
   }
 
+  function statFmt(v) {
+    if (v == null || isNaN(v)) return '-';
+    var abs = Math.abs(v);
+    if (abs >= 1e6) return d3.format('.2f')(v / 1e6) + ' million';
+    if (abs >= 1e3) return d3.format('.0f')(v / 1e3) + 'K';
+    if (abs >= 10)  return d3.format('.1f')(v);
+    return d3.format('.2f')(v);
+  }
 
-  // 1d: Controls 
-  const container = d3.create("div")
-    .style("font-family", "sans-serif")
-    .style("position", "relative");
+  // Grand annual means across all categories - used in legend block
+  const grandAnnualSF  = {};
+  const grandAnnualPkg = {};
+  Object.keys(METRICS).forEach(function (m) {
+    var mcfg = METRICS[m];
+    var sfSum = 0, pkgSum = 0, n = 0;
+    allCats.forEach(function (cat) {
+      var ref = annualRef.get(cat);
+      if (!ref) return;
+      sfSum  += ref[mcfg.mean_col]     || 0;
+      pkgSum += ref[mcfg.pkg_mean_col] || 0;
+      n++;
+    });
+    grandAnnualSF[m]  = sfSum;
+    grandAnnualPkg[m] = n > 0 ? pkgSum / n : 0;
+  });
 
-  // Static chart heading -- does not change with metric or toggle state
-  container.append("div")
-    .style("font-size", "20px")
-    .style("font-weight", "700")
-    .style("color", "#222")
-    .style("margin-bottom", "6px")
-    .text("Seasonal Variations in Environmental Impacts across Food and Drink Categories");
 
-  // Static chart context -- always visible
-  container.append("div")
-    .style("font-size", "14px")
-    .style("color", "#666")
-    .style("line-height", "1.6")
-    .style("margin-top", "16px")
-    .style("margin-bottom", "30px")
-    .style("max-width", "100%")
+  /* 1d. CONTROLS
+     HTML controls built via D3 append inside
+     ctrlWrapper (position: relative so legend block can anchor
+     to its top-right corner). topRow holds metric, per-kg,
+     category count, and legend block. ctrlRow holds event
+     overlay, date pickers, and reset.
+
+     Context paragraph removed - instructions live in the About
+     page and the sidebar how-to block.
+
+     To change:
+     - Category count options: update CAT_OPTIONS in 1a.
+     - Control font size: edit font-size style calls below.
+     - Legend threshold (narrow vs wide): adjust 520 in the
+       ResizeObserver (section 1h) - same value as trend chart. */
+
+  const container = d3.create('div')
+    .style('font-family', 'sans-serif')
+    .style('position', 'relative');
+
+  // Static heading - never changes with metric or toggle state
+  container.append('div')
+    .style('font-size', '20px')
+    .style('font-weight', '700')
+    .style('color', '#222')
+    .style('margin-bottom', '6px')
+    .text('Seasonal Variations in Environmental Impacts from Categories');
+
+  // Static description - mirrors the about page summary
+  container.append('div')
+    .style('font-size', '12px')
+    .style('color', '#777')
+    .style('line-height', '1.6')
+    .style('margin-bottom', '14px')
     .text(
-      "This chart can be used to explore seasonal variation in environmental " +
-      "impacts from food and drink sales for specific food and drink categories. " +
-      "Note that the colour scales are only comparable within " +
-      "and not across categories." + "Please visit the 'About this tool' page to learn more."
+      'Each row is 1 food category, each column is 1 week. ' +
+      'Cell colour shows how that category compared to its own typical ' +
+      'level for the year (not to other categories). ' +
+      "Check 'How to' and 'Definitions'."
     );
 
-  // // Top row: metric dropdown + per-kg pill
-  // const topRow = container.append("div")
-  //   .style("display", "flex")
-  //   .style("align-items", "center")
-  //   .style("gap", "10px")
-  //   .style("flex-wrap", "wrap")
-  //   .style("margin-bottom", "8px");
+  // position: relative anchors the absolute legend block.
+  // display: flex with column direction enforces the visual stack order:
+  //   topRow (controls, may wrap) -> hmLegendBlock -> ctrlRow
+  // When hmLegendBlock switches to position: relative on narrow screens
+  // it re-enters flow between topRow and ctrlRow exactly as intended.
+  const ctrlWrapper = container.append('div')
+    .style('position', 'relative')
+    .style('display', 'flex')
+    .style('flex-direction', 'column');
 
-  const ctrlWrapper = container.append("div")
-    .style("position", "relative");
+  // flex-wrap: wrap allows the metric dropdown, per-kg pill, and show-N
+  // dropdown to break onto a second line when there is not enough room.
+  // padding-right reserves space for the absolute legend block on wide
+  // screens. applyLegendLayout() sets this to 0 on narrow screens when
+  // the legend drops into normal flow below the controls instead.
+  const topRow = ctrlWrapper.append('div')
+    .style('display', 'flex')
+    .style('align-items', 'center')
+    .style('gap', '10px')
+    .style('flex-wrap', 'wrap')
+    .style('margin-bottom', '8px')
+    .style('padding-right', '240px');
 
-  const topRow = ctrlWrapper.append("div")
-    .style("display", "flex")
-    .style("align-items", "center")
-    .style("gap", "5px")
-    .style("flex-wrap", "nowrap")
-    .style("margin-bottom", "8px")
-    .style("padding-right", "240px");
-
-  const metricSelect = topRow.append("select")
-    .style("font-size", "12px").style("padding", "4px 8px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("background", "white").style("cursor", "pointer")
-    .on("change", function() {
-      activeMetric = d3.select(this).property("value");
+  const metricSelect = topRow.append('select')
+    .style('font-size', '12px').style('padding', '4px 8px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .style('background', 'white').style('cursor', 'pointer')
+    .on('change', function () {
+      activeMetric = d3.select(this).property('value');
       redraw();
     });
 
-  METRIC_OPTIONS.forEach(({ key, display }) => {
-    metricSelect.append("option")
-      .attr("value", key)
-      .property("selected", key === activeMetric)
-      .text(display);
+  METRIC_OPTIONS.forEach(function (opt) {
+    metricSelect.append('option')
+      .attr('value', opt.key)
+      .property('selected', opt.key === activeMetric)
+      .text(opt.display);
   });
 
-  topRow.append("div")
-    .style("width", "1px").style("height", "18px")
-    .style("background", "#ddd").style("margin", "0 4px");
+  topRow.append('div')
+    .style('width', '1px').style('height', '18px')
+    .style('background', '#ddd').style('margin', '0 4px');
 
-  const pkgPill = topRow.append("div")
-    .style("display", "flex")
-    .style("border", "1px solid #ccc")
-    .style("border-radius", "4px")
-    .style("overflow", "hidden");
+  const pkgPill = topRow.append('div')
+    .style('display', 'flex').style('border', '1px solid #ccc')
+    .style('border-radius', '4px').style('overflow', 'hidden');
 
-  const btnTotal = pkgPill.append("button")
-    .text("Total SF")
-    .style("font-size", "12px").style("padding", "4px 10px")
-    .style("border", "none").style("cursor", "pointer")
-    .style("transition", "background 0.15s, color 0.15s");
+  const btnTotal = pkgPill.append('button').text('Total SF')
+    .style('font-size', '12px').style('padding', '4px 10px')
+    .style('border', 'none').style('cursor', 'pointer')
+    .style('font-family', 'inherit')
+    .style('transition', 'background 0.15s, color 0.15s');
 
-  const btnPkg = pkgPill.append("button")
-    .text("Per kg")
-    .style("font-size", "12px").style("padding", "4px 10px")
-    .style("border", "none").style("border-left", "1px solid #ccc")
-    .style("cursor", "pointer")
-    .style("transition", "background 0.15s, color 0.15s");
+  const btnPkg = pkgPill.append('button').text('Per kg')
+    .style('font-size', '12px').style('padding', '4px 10px')
+    .style('border', 'none').style('border-left', '1px solid #ccc')
+    .style('cursor', 'pointer').style('font-family', 'inherit')
+    .style('transition', 'background 0.15s, color 0.15s');
 
   function syncPkgToggle() {
-    btnTotal.style("background", !activePkg ? "#555" : "#fff")
-            .style("color",      !activePkg ? "#fff" : "#555");
-    btnPkg  .style("background",  activePkg ? "#555" : "#fff")
-            .style("color",       activePkg ? "#fff" : "#555");
+    btnTotal
+      .style('background', !activePkg ? '#f5f1fe' : '#fff')
+      .style('color',      !activePkg ? '#111' : '#555');
+    btnPkg
+      .style('background',  activePkg ? '#f5f1fe' : '#fff')
+      .style('color',       activePkg ? '#111' : '#555');
   }
-
-  btnTotal.on("click", function() {
-    if (activePkg) { activePkg = false; syncPkgToggle(); redraw(); }
+  btnTotal.on('click', function () {
+    if (activePkg)  { activePkg = false; syncPkgToggle(); redraw(); }
   });
-  btnPkg.on("click", function() {
-    if (!activePkg) { activePkg = true; syncPkgToggle(); redraw(); }
+  btnPkg.on('click', function () {
+    if (!activePkg) { activePkg = true;  syncPkgToggle(); redraw(); }
   });
   syncPkgToggle();
 
-  // // Bottom row: event overlay + dates + reset + show N
-  // const ctrlRow = container.append("div")
-  //   .style("display", "flex")
-  //   .style("align-items", "center")
-  //   .style("column-gap", "10px")
-  //   .style("row-gap", "8px")
-  //   .style("flex-wrap", "wrap")
-  //   .style("margin-bottom", "12px");
+  topRow.append('div')
+    .style('width', '1px').style('height', '18px')
+    .style('background', '#ddd').style('margin', '0 4px');
 
-  topRow.append("div")
-    .style("width", "1px").style("height", "18px")
-    .style("background", "#ddd").style("margin", "0 4px");
+  topRow.append('span')
+    .style('font-size', '12px').style('color', '#666')
+    .text('Show:');
 
-  topRow.append("span")
-    .style("font-size", "12px").style("color", "#666")
-    .text("Show:");
-
-  const catSelect = topRow.append("select")
-    .style("font-size", "12px").style("padding", "4px 8px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("background", "white").style("cursor", "pointer")
-    .on("change", function() {
-      activeN = +d3.select(this).property("value");
+  const catSelect = topRow.append('select')
+    .style('font-size', '12px').style('padding', '4px 8px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .style('background', 'white').style('cursor', 'pointer')
+    .on('change', function () {
+      activeN = +d3.select(this).property('value');
       redraw();
     });
 
-  CAT_OPTIONS.forEach(n => {
-    catSelect.append("option")
-      .attr("value", n)
-      .property("selected", n === activeN)
-      .text(`Top ${n} categories`);
+  CAT_OPTIONS.forEach(function (n) {
+    catSelect.append('option')
+      .attr('value', n).property('selected', n === activeN)
+      .text('Top ' + n + ' categories');
   });
 
-  // // Legend block pushed to right side of topRow
-  // const hmLegendBlock = topRow.append("div")
-  //   .style("margin-left", "auto")
-  //   .style("display", "flex")
-  //   .style("flex-direction", "column")
-  //   .style("align-items", "flex-end")
-  //   .style("gap", "2px")
-  //   .style("padding-left", "12px");
+  // Legend block: absolute top-right of ctrlWrapper.
+  // Same repositioning logic as trend chart - drops below controls
+  // when chart width falls below 520px (handled in ResizeObserver).
+  const hmLegendBlock = ctrlWrapper.append('div')
+    .style('position', 'absolute')
+    .style('top', '0').style('right', '0')
+    .style('z-index', '5')
+    .style('display', 'flex')
+    .style('flex-direction', 'column')
+    .style('align-items', 'flex-end')
+    .style('gap', '3px')
+    .style('padding', '4px 8px')
+    .style('background', 'rgba(255,255,255,0.92)')
+    .style('border-radius', '4px');
 
-  const hmLegendBlock = ctrlWrapper.append("div")
-    .style("position", "absolute")
-    .style("top", "0")
-    .style("right", "0")
-    .style("z-index", "5")
-    .style("display", "flex")
-    .style("flex-direction", "column")
-    .style("align-items", "flex-end")
-    .style("gap", "3px")
-    .style("padding", "4px 8px")
-    .style("background", "rgba(255,255,255,0.92)")
-    .style("border-radius", "4px");
+  const hmSwatchRow = hmLegendBlock.append('div')
+    .style('display', 'flex').style('align-items', 'center').style('gap', '8px');
 
-  const hmSwatchRow = hmLegendBlock.append("div")
-    .style("display", "flex")
-    .style("align-items", "center")
-    .style("gap", "8px");
+  const hmLegendSwatch = hmSwatchRow.append('svg')
+    .attr('width', '28').attr('height', '10').style('flex-shrink', '0');
 
-  const hmLegendSwatch = hmSwatchRow.append("svg")
-    .attr("width", "28").attr("height", "10")
-    .style("flex-shrink", "0");
+  hmLegendSwatch.append('line')
+    .attr('x1', '0').attr('y1', '5').attr('x2', '28').attr('y2', '5')
+    .attr('stroke-width', '2.5').attr('stroke-linecap', 'round')
+    .attr('class', 'hm-legend-line');
 
-  hmLegendSwatch.append("line")
-    .attr("x1", "0").attr("y1", "5")
-    .attr("x2", "28").attr("y2", "5")
-    .attr("stroke-width", "2.5")
-    .attr("stroke-linecap", "round")
-    .attr("class", "hm-legend-line");
+  const hmLegendLabel = hmSwatchRow.append('span')
+    .style('font-size', '12px').style('color', '#555');
 
-  const hmLegendLabel = hmSwatchRow.append("span")
-    .style("font-size", "12px").style("color", "#555");
+  // Annual mean values: bold per change spec
+  const hmLegendMeanSF = hmLegendBlock.append('span')
+    .style('font-size', '10px').style('color', '#444');
 
-  const hmLegendMeanSF = hmLegendBlock.append("span")
-    .style("font-size", "12px").style("color", "#555");
-
-  const hmLegendMeanPkg = hmLegendBlock.append("span")
-    .style("font-size", "12px").style("color", "#555");
+  const hmLegendMeanPkg = hmLegendBlock.append('span')
+    .style('font-size', '10px').style('color', '#444');
 
   // Bottom row: event overlay + dates + reset
-  const ctrlRow = ctrlWrapper.append("div")
+  const ctrlRow = ctrlWrapper.append('div')
+    .style('display', 'flex')
+    .style('align-items', 'center')
+    .style('column-gap', '10px').style('row-gap', '8px')
+    .style('flex-wrap', 'wrap')
+    // .style('margin-top', '12px')
+    .style('margin-bottom', '12px');
 
-  ctrlRow.append("span")
-    .style("font-size", "12px").style("color", "#666")
-    .style("margin-right", "5px")
-    .text("Event overlay:");
+  ctrlRow.append('span')
+    .style('font-size', '12px').style('color', '#666')
+    .text('Event overlay:');
 
-  const eventGroupSelect = ctrlRow.append("select")
-    .style("font-size", "12px").style("padding", "4px 8px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("background", "white").style("cursor", "pointer")
-    .style("margin-right", "10px")
-    .on("change", function() {
-      activeEventGroup = d3.select(this).property("value");
+  const eventGroupSelect = ctrlRow.append('select')
+    .style('font-size', '12px').style('padding', '4px 8px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .style('background', 'white').style('cursor', 'pointer')
+    .on('change', function () {
+      activeEventGroup = d3.select(this).property('value');
       redraw();
     });
 
-  EVENT_GROUP_OPTIONS.forEach(({ key, display }) => {
-    eventGroupSelect.append("option")
-      .attr("value", key)
-      .property("selected", key === activeEventGroup)
-      .text(display);
+  EVENT_GROUP_OPTIONS.forEach(function (opt) {
+    eventGroupSelect.append('option')
+      .attr('value', opt.key)
+      .property('selected', opt.key === activeEventGroup)
+      .text(opt.display);
   });
 
-  // ctrlRow.append("div")
-  //   .style("width", "1px").style("height", "18px")
-  //   .style("background", "#ddd").style("margin", "0 2px");
+  ctrlRow.append('div')
+    .style('width', '1px').style('height', '18px')
+    .style('background', '#ddd').style('margin', '0 2px');
 
-  ctrlRow.append("span")
-    .style("font-size", "12px").style("color", "#666")
-    .style("margin-right", "5px")
-    .text("From:");
+  ctrlRow.append('span')
+    .style('font-size', '12px').style('color', '#666').text('From:');
 
-  const startPicker = ctrlRow.append("input")
-    .attr("type", "date").attr("value", dateMinStr)
-    .attr("min", dateMinStr).attr("max", dateMaxStr)
-    .style("font-size", "12px").style("padding", "3px 6px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("margin-right", "5px")
-    .on("change", function() {
-      if (this.value > endPicker.property("value"))
-        this.value = endPicker.property("value");
+  const startPicker = ctrlRow.append('input')
+    .attr('type', 'date').attr('value', dateMinStr)
+    .attr('min', dateMinStr).attr('max', dateMaxStr)
+    .style('font-size', '12px').style('padding', '3px 6px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .on('change', function () {
+      if (this.value > endPicker.property('value'))
+        this.value = endPicker.property('value');
       redraw();
     });
 
-  ctrlRow.append("span")
-    .style("font-size", "12px").style("color", "#666")
-    .style("margin-right", "5px")
-    .text("To:");
+  ctrlRow.append('span')
+    .style('font-size', '12px').style('color', '#666').text('To:');
 
-  const endPicker = ctrlRow.append("input")
-    .attr("type", "date").attr("value", dateMaxStr)
-    .attr("min", dateMinStr).attr("max", dateMaxStr)
-    .style("font-size", "12px").style("padding", "3px 6px")
-    .style("border-radius", "4px").style("border", "1px solid #ccc")
-    .style("margin-right", "10px")
-    .on("change", function() {
-      if (this.value < startPicker.property("value"))
-        this.value = startPicker.property("value");
+  const endPicker = ctrlRow.append('input')
+    .attr('type', 'date').attr('value', dateMaxStr)
+    .attr('min', dateMinStr).attr('max', dateMaxStr)
+    .style('font-size', '12px').style('padding', '3px 6px')
+    .style('border-radius', '4px').style('border', '1px solid #ccc')
+    .on('change', function () {
+      if (this.value < startPicker.property('value'))
+        this.value = startPicker.property('value');
       redraw();
     });
 
-  const resetBtn = ctrlRow.append("button")
-    .text("Reset dates")
-    .style("font-size", "12px").style("padding", "4px 10px")
-    .style("border-radius", "4px").style("border", "1px solid #bbb")
-    .style("background", "#fff").style("color", "#555")
-    .style("cursor", "pointer")
-    .on("click", function() {
-      startPicker.property("value", dateMinStr);
-      endPicker.property("value",   dateMaxStr);
+  const resetBtn = ctrlRow.append('button')
+    .text('Reset dates')
+    .style('font-size', '12px').style('padding', '4px 10px')
+    .style('border-radius', '4px').style('border', '1px solid #bbb')
+    .style('background', '#fff').style('color', '#555')
+    .style('cursor', 'pointer').style('font-family', 'inherit')
+    .on('click', function () {
+      startPicker.property('value', dateMinStr);
+      endPicker.property('value',   dateMaxStr);
       redraw();
     });
-
-  // ctrlRow.append("div")
-  //   .style("width", "1px").style("height", "18px")
-  //   .style("background", "#ddd").style("margin", "0 2px");
-
-  // ctrlRow.append("span")
-  //   .style("font-size", "12px").style("color", "#666")
-  //   .text("Show:");
-
-  // const catSelect = ctrlRow.append("select")
-  //   .style("font-size", "12px").style("padding", "4px 8px")
-  //   .style("border-radius", "4px").style("border", "1px solid #ccc")
-  //   .style("background", "white").style("cursor", "pointer")
-  //   .on("change", function() {
-  //     activeN = +d3.select(this).property("value");
-  //     redraw();
-  //   });
-
-  // CAT_OPTIONS.forEach(n => {
-  //   catSelect.append("option")
-  //     .attr("value", n)
-  //     .property("selected", n === activeN)
-  //     .text(`Top ${n} categories`);
-  // });
 
   function syncResetButton() {
-    const atFull = startPicker.property("value") === dateMinStr &&
-                   endPicker.property("value")   === dateMaxStr;
+    var atFull =
+      startPicker.property('value') === dateMinStr &&
+      endPicker.property('value')   === dateMaxStr;
     resetBtn
-      .attr("disabled",        atFull ? true : null)
-      .style("opacity",        atFull ? "0.35" : "1")
-      .style("cursor",         atFull ? "not-allowed" : "pointer")
-      .style("pointer-events", atFull ? "none" : "auto");
+      .attr('disabled',        atFull ? true : null)
+      .style('opacity',        atFull ? '0.35' : '1')
+      .style('cursor',         atFull ? 'not-allowed' : 'pointer')
+      .style('pointer-events', atFull ? 'none' : 'auto');
   }
 
-  // Dynamic metric label -- colour and text updated in redraw()
-  const titleDiv = container.append("div")
-    .style("font-size", "14px")
-    .style("font-weight", "600")
-    .style("margin-bottom", "4px");
 
-  const subtitleDiv = container.append("div")
-    .style("font-size", "12px")
-    .style("color", "#999")
-    .style("margin-bottom", "10px");
+  /* 1e. GRADIENT LEGEND
+     HTML div containing a small inline SVG with the
+     colour scale gradient bar and its labels. Sits between the
+     controls and the chart (above the sticky header area) so it
+     is always visible without scrolling. The gradient definition
+     lives in this SVG's own defs element. redraw() updates the
+     gradient stops, the title text, and the end labels.
 
+     To change:
+     - Legend width: update the SVG width attribute and the
+       gradRect width attribute to match.
+     - Label font size: edit the style calls on gradLeft etc.
+     - Remove the legend entirely: delete this section and its
+       update calls in redraw(). No other code depends on it. */
 
-  // 1e: SVG shell
+  // gradLegendDiv appended to hmLegendBlock so it sits below the annual
+  // mean spans and stays right-aligned on wide screens, left-aligned on narrow.
+  // margin-top adds breathing space between the mean spans and the colour bar.
 
-  const W = width - MARGIN.left - MARGIN.right;
-
-  const svg = container.append("svg")
-    .attr("width", width)
-    .style("overflow", "visible");
-
-  const defs   = svg.append("defs");
-  const lgGrad = defs.append("linearGradient")
-    .attr("id", "hm-v2-legend-grad")
-    .attr("x1", "0%").attr("x2", "100%");
-
-  const g = svg.append("g")
-    .attr("transform", `translate(${MARGIN.left},${MARGIN.top})`);
-
-  const dividerGroup = g.append("g").attr("class", "dividers");
-  const cellGroup    = g.append("g").attr("class", "cells");
-  const monthGroup   = g.append("g").attr("class", "months");
-  const labelGroup   = g.append("g").attr("class", "cat-labels");
-  const rankGroup    = g.append("g").attr("class", "rank-axis");
-  const eventGroup   = g.append("g").attr("class", "events");
-  const axisLegGroup = g.append("g").attr("class", "axis-leg");
-
-  const overlay = g.append("rect")
-    .attr("width", W)
-    .attr("fill", "none")
-    .style("pointer-events", "all");
-
-  // Cell hover tooltip
-  const tooltip = container.append("div")
-    .style("position", "absolute").style("pointer-events", "none")
-    .style("background", "rgba(255,255,255,0.97)")
-    .style("border", "1px solid #ccc").style("border-radius", "6px")
-    .style("padding", "8px 12px").style("font-size", "12px")
-    .style("line-height", "1.8")
-    .style("box-shadow", "0 2px 8px rgba(0,0,0,0.12)")
-    .style("display", "none").style("max-width", "280px")
-    .style("z-index", "10");
-
-  // Shared tooltip for event markers and rank strip hover
-  const evtTooltip = container.append("div")
-    .style("position", "absolute").style("pointer-events", "none")
-    .style("background", "rgba(255,255,255,0.97)")
-    .style("border", "1px solid #ddd").style("border-radius", "5px")
-    .style("padding", "5px 9px").style("font-size", "12px")
-    .style("line-height", "1.5")
-    .style("box-shadow", "0 1px 6px rgba(0,0,0,0.10)")
-    .style("display", "none").style("max-width", "200px")
-    .style("z-index", "11");
-
-  // Footnote below SVG -- text set by redraw() via EVENT_FOOTNOTES
-  const footnoteEl = container.append("p")
-    .style("font-size", "12px")
-    .style("color", "#bbb")
-    .style("margin", "12px 0 8px 0")
-    .style("min-height", "18px")
-    .text(EVENT_FOOTNOTES["public_holidays"]);
+  // Gradient legend moved back into bodySVG axisLegGroup (bottom-right band).
+  // lgGrad defs are added to bodySVG in section 1f so the gradient ID resolves
+  // within the same SVG document. legG is drawn in redraw() since its y position
+  // depends on chart_H which changes with activeN.
 
 
-  // 1f: Redraw
+  /* 1f. SVG SHELL
+     Two SVG elements stacked inside scrollWrapper.
+
+     headerSVG (sticky): contains month labels and event markers.
+       position: sticky means it stays pinned at the top of the
+       right-panel viewport as the user scrolls down the heatmap.
+       The hg group is translated by (MARGIN.left, MARGIN.top) so
+       month labels at y=-N and event ticks at y=-N render in the
+       visible space above the cell boundary at y=0.
+
+     bodySVG (scrolls): contains cells, category labels, rank
+       axis, dividers, and the overlay rect. Its height updates
+       in redraw() each time chart_H changes (activeN change).
+       No top margin needed here - the header is a separate element.
+
+     Both SVGs share the same MARGIN.left so colX() values align
+     between them visually despite being in separate DOM elements.
+
+     To change:
+     - Sticky header background: update background on stickyHeader.
+     - Sticky top offset: change the top value on stickyHeader.
+       0 sticks to the top of the right-panel viewport. If the
+       nav bar overlaps, try top: 48px - but normally the nav is
+       outside the right-panel scroll context so 0 is correct.
+     - Header height (space for month labels and event ticks):
+       update LAYOUT.HEADER_H in 1a and LAYOUT.MARGIN.top to match. */
+
+  // stickyHeader sits outside hmChartScroll so overflow-x: auto on the
+  // scroll container does not trap sticky positioning.
+  // It sticks relative to right-panel (the actual vertical scroll ancestor).
+  // A scroll listener below keeps header content aligned with body scroll.
+  const stickyHeader = container.append('div')
+    .style('position', 'sticky')
+    .style('top', '0')
+    .style('z-index', '10')
+    .style('background', '#ffffff')
+    .style('overflow', 'hidden');   // clips header content that scrolls past edge
+
+  const headerSVG = stickyHeader.append('svg')
+    .attr('width', totalWidth)
+    .attr('height', LAYOUT.HEADER_H)
+    .style('overflow', 'visible')
+    .style('display', 'block');
+
+  // hg transform: MARGIN.left offset updated by scroll listener when body scrolls
+  const hg = headerSVG.append('g')
+    .attr('transform', 'translate(' + MARGIN.left + ',' + LAYOUT.HEADER_H + ')');
+
+  // hmChartScroll: horizontal scroll only, overflow-y visible so sticky is unaffected
+  const hmChartScroll = container.append('div')
+    .style('overflow-x', 'auto')
+    .style('overflow-y', 'visible');
+
+  const scrollWrapper = hmChartScroll.append('div')
+    .style('min-width', MIN_CHART_WIDTH + 'px')
+    .style('position', 'relative');
+
+  const monthGroup = hg.append('g').attr('class', 'months');
+  const eventGroup = hg.append('g').attr('class', 'events');
+
+  // Bottom border of header separating it from the body
+  const headerBaseline = hg.append('line')
+    .attr('x1', -MARGIN.left).attr('x2', W)
+    .attr('y1', -1).attr('y2', -1)
+    .attr('stroke', '#e0e0e0').attr('stroke-width', 0.5);
+
+  const bodySVG = scrollWrapper.append('svg')
+    .attr('width', totalWidth)
+    .attr('height', 270)   // initial placeholder; updated in redraw()
+    .style('overflow', 'visible')
+    .style('display', 'block');
+
+  // Gradient defs live in bodySVG so url(#hm-v3-legend-grad) resolves
+  // within the same SVG document as the legend rect that references it.
+  const bodyDefs = bodySVG.append('defs');
+  const lgGrad   = bodyDefs.append('linearGradient')
+    .attr('id', 'hm-v3-legend-grad')
+    .attr('x1', '0%').attr('x2', '100%');
+
+  // Body g group: no top margin since header is a separate element
+  const g = bodySVG.append('g')
+    .attr('transform', 'translate(' + MARGIN.left + ',0)');
+
+  const dividerGroup = g.append('g').attr('class', 'dividers');
+  const cellGroup    = g.append('g').attr('class', 'cells');
+  const labelGroup   = g.append('g').attr('class', 'cat-labels');
+  const rankGroup    = g.append('g').attr('class', 'rank-axis');
+  const axisLegGroup = g.append('g').attr('class', 'axis-leg');
+
+  const overlay = g.append('rect')
+    .attr('width', W).attr('height', 270)
+    .attr('fill', 'none').style('pointer-events', 'all');
+
+  // Cell tooltip positioned relative to container
+  const tooltip = container.append('div')
+    .style('position', 'absolute').style('pointer-events', 'none')
+    .style('background', 'rgba(255,255,255,0.97)')
+    .style('border', '1px solid #ccc').style('border-radius', '6px')
+    .style('padding', '8px 12px').style('font-size', '12px')
+    .style('line-height', '1.8')
+    .style('box-shadow', '0 2px 8px rgba(0,0,0,0.12)')
+    .style('display', 'none').style('max-width', '280px')
+    .style('z-index', '20');
+
+  // Shared tooltip for event marker hover and rank strip hover
+  const evtTooltip = container.append('div')
+    .style('position', 'absolute').style('pointer-events', 'none')
+    .style('background', 'rgba(255,255,255,0.97)')
+    .style('border', '1px solid #ddd').style('border-radius', '5px')
+    .style('padding', '5px 9px').style('font-size', '12px')
+    .style('line-height', '1.5')
+    .style('box-shadow', '0 1px 6px rgba(0,0,0,0.10)')
+    .style('display', 'none').style('max-width', '200px')
+    .style('z-index', '21');
+
+  // Footnote inside hmChartScroll so it scrolls horizontally with the chart.
+  const footnoteEl = hmChartScroll.append('p')
+    .style('font-size', '12px').style('color', '#bbb')
+    .style('margin', '10px 0 6px 0').style('min-height', '16px')
+    .text(EVENT_FOOTNOTES['public_holidays'] || '');
+
+
+  /* 1g. REDRAW
+     Full chart redraw on any state or resize change.
+     Clears and redraws all groups in both headerSVG and bodySVG.
+     chart_H is computed from activeN and updates bodySVG height.
+     colX() uses effectiveCellW and month gap offsets to map
+     a column index to an x pixel position. The same colX()
+     function is used in both header and body groups so month
+     label positions align with cell column positions.
+
+     To change:
+     - Colour scheme: update interpolator/pkg_interpolator in 1a.
+     - Row height formula: chart_H computation uses (N-10)/55 -
+       update if CAT_OPTIONS changes maximum from 65 to 30.
+     - Tooltip content: edit the html() template string below. */
 
   function redraw() {
+    console.log('L2a first week_start raw:', allWeekStrs[0], '| parsed:', parseDate(allWeekStrs[0]));
 
-    [dividerGroup, cellGroup, monthGroup, labelGroup,
-     rankGroup, eventGroup, axisLegGroup].forEach(g2 => g2.selectAll("*").remove());
+    [monthGroup, eventGroup, dividerGroup, cellGroup,
+     labelGroup, rankGroup, axisLegGroup].forEach(function (grp) {
+      grp.selectAll('*').remove();
+    });
 
-    const cfg = METRICS[activeMetric];
+    var cfg = METRICS[activeMetric];
 
-    // All active column names resolved here -- single source per redraw
-    const activeInterp      = cfg.interpolator;
-    const activeLabel       = activePkg ? cfg.pkg_label          : cfg.label;
-    const activeUnit        = activePkg ? cfg.pkg_unit           : cfg.unit;
-    const activeAnnRankCol  = activePkg ? cfg.pkg_annual_rank_col : cfg.annual_rank_col;
-    const activeMeanCol     = activePkg ? cfg.pkg_mean_col       : cfg.mean_col;
-    const activePctCol      = activePkg ? cfg.pkg_pct_col        : cfg.pct_col;
-    const activeWkCol       = activePkg ? cfg.weekly_pkg_col     : cfg.weekly_col;
-    const activeDivCol      = cfg.pkg_max_abs_dev_col;
+    var activeInterp     = cfg.interpolator;
+    var activeLabel      = activePkg ? cfg.pkg_label          : cfg.label;
+    var activeUnit       = activePkg ? cfg.pkg_unit           : cfg.unit;
+    var activeAnnRankCol = activePkg ? cfg.pkg_annual_rank_col : cfg.annual_rank_col;
+    var activeMeanCol    = activePkg ? cfg.pkg_mean_col       : cfg.mean_col;
+    var activePctCol     = activePkg ? cfg.pkg_pct_col        : cfg.pct_col;
+    var activeWkCol      = activePkg ? cfg.weekly_pkg_col     : cfg.weekly_col;
+    var activeDivCol     = cfg.pkg_max_abs_dev_col;
 
-    const dFrom = new Date(startPicker.property("value") + "T00:00:00");
-    const dTo   = new Date(endPicker.property("value")   + "T00:00:00");
+    var dFrom = new Date(startPicker.property('value') + 'T00:00:00');
+    var dTo   = new Date(endPicker.property('value')   + 'T00:00:00');
 
-    // Category sort by pre-computed annual rank -- no d3.rollup needed
-    const sortedCats = [...allCats]
-      .sort((a, b) => {
-        const ra = annualRef.get(a)?.[activeAnnRankCol] ?? 99;
-        const rb = annualRef.get(b)?.[activeAnnRankCol] ?? 99;
-        return ra - rb;
-      })
-      .slice(0, activeN);
+    var sortedCats = allCats.slice().sort(function (a, b) {
+      var ra = (annualRef.get(a) || {})[activeAnnRankCol] || 99;
+      var rb = (annualRef.get(b) || {})[activeAnnRankCol] || 99;
+      return ra - rb;
+    }).slice(0, activeN);
 
-    const N_CATS     = sortedCats.length;
-    const groupGapPx = CAT_GAPS[activeN] ?? 0;
-    const nGroupGaps = Math.floor((N_CATS - 1) / ROW_GROUP_SIZE);
-    const chart_H    = MIN_CHART_H + ((N_CATS - 10) / 55) * (MAX_CHART_H - MIN_CHART_H);
-    const available  = chart_H - (N_CATS - 1) * GAP - nGroupGaps * groupGapPx;
-    const ROW_H      = Math.max(available / N_CATS, MIN_ROW_H);
-    const rowYStarts = computeRowYStarts(N_CATS, ROW_H, groupGapPx);
+    var N_CATS     = sortedCats.length;
+    var groupGapPx = CAT_GAPS[activeN] || 0;
+    var nGroupGaps = Math.floor((N_CATS - 1) / LAYOUT.ROW_GROUP_SIZE);
+    var chart_H    = LAYOUT.MIN_CHART_H +
+                     ((N_CATS - 10) / 20) * (LAYOUT.MAX_CHART_H - LAYOUT.MIN_CHART_H);
+    var available  = chart_H - (N_CATS - 1) * LAYOUT.GAP - nGroupGaps * groupGapPx;
+    var ROW_H      = Math.max(available / N_CATS, LAYOUT.MIN_ROW_H);
+    var rowYStarts = computeRowYStarts(N_CATS, ROW_H, groupGapPx);
 
-    svg.attr("height", chart_H + MARGIN.top + MARGIN.bottom);
-    overlay.attr("height", chart_H);
+    // Update body SVG and overlay height to match computed chart_H
+    bodySVG.attr('height', chart_H + MARGIN.bottom);
+    overlay.attr('height', chart_H);
 
-    // Weekly bin filter: include bins that overlap the selected window
-    const weekKeys = allWeekStrs.filter(wk => {
+    const weekKeys = allWeekStrs.filter(function (wk) {
       const wd = parseDate(wk);
+      if (!wd) return false;  // null guard: skip if date format did not match
       const we = new Date(wd.getTime() + 6 * 86400000);
       return wd <= dTo && we >= dFrom;
     });
 
-    const displayDates = weekKeys.map(s => parseDate(s));
+    var displayDates = weekKeys.map(function (s) { return parseDate(s); });
 
-    const displayValues = new Map();
-    sortedCats.forEach(cat => {
-      const wkMap = weeklyMap.get(cat);
-      const m     = new Map();
-      weekKeys.forEach(wk => {
-        const row = wkMap?.get(wk);
+    var displayValues = new Map();
+    sortedCats.forEach(function (cat) {
+      var wkMap = weeklyMap.get(cat);
+      var m     = new Map();
+      weekKeys.forEach(function (wk) {
+        var row = wkMap && wkMap.get(wk);
         if (row && row[activeWkCol] != null)
           m.set(wk, {
             value    : row[activeWkCol],
@@ -740,18 +847,38 @@ function createHeatmap(weeklyData, { width = 900, onStats = null } = {}) {
       displayValues.set(cat, m);
     });
 
-    const N_COLS = displayDates.length;
+    var N_COLS = displayDates.length;
     if (!N_COLS) return;
 
-    // Period baseline: sum SF and mean per-kg across all 65 cats in window
-    let periodSFTotal  = 0;
-    let periodPkgSum   = 0;
-    let periodPkgCount = 0;
+    // Month gap columns: insert before bins that contain a month-1st
+    var monthStartCols = new Set();
+    displayDates.forEach(function (d, i) {
+      if (i === 0 || !d) return;  // null guard: skip null dates
+      for (var offset = 0; offset < 7; offset++) {
+        const day = new Date(d.getTime() + offset * 86400000);
+        if (day.getDate() === 1) { monthStartCols.add(i); break; }
+      }
+    });
 
-    allCats.forEach(cat => {
-      const wm = weeklyMap.get(cat);
-      weekKeys.forEach(wk => {
-        const row = wm?.get(wk);
+    var effectiveCellW = (W - monthStartCols.size * LAYOUT.MONTH_GAP) / N_COLS;
+
+    var colGapOffset = new Array(N_COLS).fill(0);
+    var cumGaps = 0;
+    for (var ci = 0; ci < N_COLS; ci++) {
+      if (monthStartCols.has(ci)) cumGaps++;
+      colGapOffset[ci] = cumGaps;
+    }
+
+    function colX(colIdx) {
+      return colIdx * effectiveCellW + (colGapOffset[colIdx] || 0) * LAYOUT.MONTH_GAP;
+    }
+
+    // Period baseline stats (passed to onStats if provided)
+    var periodSFTotal  = 0, periodPkgSum = 0, periodPkgCount = 0;
+    allCats.forEach(function (cat) {
+      var wm = weeklyMap.get(cat);
+      weekKeys.forEach(function (wk) {
+        var row = wm && wm.get(wk);
         if (!row) return;
         if (row[cfg.weekly_col] != null && !isNaN(row[cfg.weekly_col]))
           periodSFTotal += row[cfg.weekly_col];
@@ -761,413 +888,461 @@ function createHeatmap(weeklyData, { width = 900, onStats = null } = {}) {
         }
       });
     });
+    var periodPkgAvg = periodPkgCount > 0 ? periodPkgSum / periodPkgCount : 0;
+    if (typeof onStats === 'function') onStats(periodSFTotal, periodPkgAvg, cfg);
 
-    const periodPkgAvg = periodPkgCount > 0 ? periodPkgSum / periodPkgCount : 0;
-
-    if (typeof onStats === "function") {
-      onStats(periodSFTotal, periodPkgAvg, cfg);
-    }
-
-    // Month gap: insert before the first column whose window contains a month-1st
-    const monthStartCols = new Set();
-    displayDates.forEach((d, i) => {
-      if (i === 0) return;
-      for (let offset = 0; offset < 7; offset++) {
-        const day = new Date(d.getTime() + offset * 86400000);
-        if (day.getDate() === 1) { monthStartCols.add(i); break; }
-      }
+    // Gradient legend: SVG group in axisLegGroup, bottom-right of chart.
+    // Position anchored to W and chart_H so it stays in the bottom-right
+    // corner regardless of how many category rows are visible.
+    // Adjust the x offset (W - 155) to nudge left or right.
+    // Adjust the y offset (chart_H + 14) to raise or lower within MARGIN.bottom.
+    lgGrad.selectAll('stop').remove();
+    d3.range(0, 1.01, 0.1).forEach(function (t) {
+      lgGrad.append('stop')
+        .attr('offset', (t * 100) + '%')
+        .attr('stop-color', activePkg ? cfg.pkg_interpolator(t) : activeInterp(t));
     });
 
-    const effectiveCellW = (W - monthStartCols.size * MONTH_GAP) / N_COLS;
+    var legG = axisLegGroup.append('g')
+      .attr('transform', 'translate(' + (W - 125) + ',' + (chart_H + 20) + ')');
 
-    const colGapOffset = new Array(N_COLS).fill(0);
-    let cumGaps = 0;
-    for (let i = 0; i < N_COLS; i++) {
-      if (monthStartCols.has(i)) cumGaps++;
-      colGapOffset[i] = cumGaps;
+    legG.append('text').attr('x', 0).attr('y', 5)
+      .style('font-size', '9px').style('fill', '#999')
+      .text(activePkg ? 'Deviation from annual mean:' : 'Per-row scale:');
+
+    legG.append('rect')
+      .attr('y', 10).attr('width', 140).attr('height', 10).attr('rx', 2)
+      .style('fill', 'url(#hm-v3-legend-grad)');
+
+    if (activePkg) {
+      legG.append('text').attr('x', 0).attr('y', 30)
+        .style('font-size', '9px').style('fill', '#bbb').text('Below mean');
+      legG.append('text').attr('x', 70).attr('y', 30)
+        .attr('text-anchor', 'middle')
+        .style('font-size', '9px').style('fill', '#bbb').text('Annual mean');
+      legG.append('text').attr('x', 140).attr('y', 30)
+        .attr('text-anchor', 'end')
+        .style('font-size', '9px').style('fill', '#bbb').text('Above mean');
+    } else {
+      legG.append('text').attr('x', 0).attr('y', 30)
+        .style('font-size', '9px').style('fill', '#bbb').text('Low');
+      legG.append('text').attr('x', 140).attr('y', 30)
+        .attr('text-anchor', 'end')
+        .style('font-size', '9px').style('fill', '#bbb').text('High');
     }
 
-    function colX(colIdx) {
-      return colIdx * effectiveCellW + (colGapOffset[colIdx] ?? 0) * MONTH_GAP;
-    }
-
-    // Colour scale -- diverging for per-kg, sequential for total SF
-    lgGrad.selectAll("stop").remove();
-    d3.range(0, 1.01, 0.1).forEach(t =>
-      lgGrad.append("stop")
-        .attr("offset", `${t * 100}%`)
-        .attr("stop-color", activePkg ? cfg.pkg_interpolator(t) : activeInterp(t))
-    );
-
-    const rowScales = new Map();
-    sortedCats.forEach(cat => {
+    // Per-category colour scales
+    var rowScales = new Map();
+    sortedCats.forEach(function (cat) {
+      var ref = annualRef.get(cat) || {};
       if (activePkg) {
-        const ref      = annualRef.get(cat);
-        const mean     = ref?.[activeMeanCol] ?? 0;
-        const halfSpan = ref?.[activeDivCol]  ?? 1;
+        var mean     = ref[activeMeanCol]  || 0;
+        var halfSpan = ref[activeDivCol]   || 1;
         rowScales.set(cat,
           d3.scaleDiverging(cfg.pkg_interpolator)
             .domain([mean - halfSpan * 1.5, mean, mean + halfSpan * 1.5])
             .clamp(true)
         );
       } else {
-        const vals = Array.from((displayValues.get(cat) || new Map()).values())
-          .map(d => d.value).filter(v => v != null && !isNaN(v));
-        let [vMin, vMax] = d3.extent(vals);
-        vMin = vMin ?? 0; vMax = vMax ?? 1;
+        var vals = Array.from((displayValues.get(cat) || new Map()).values())
+          .map(function (d) { return d.value; })
+          .filter(function (v) { return v != null && !isNaN(v); });
+        var ext  = d3.extent(vals);
+        var vMin = ext[0] || 0, vMax = ext[1] || 1;
         rowScales.set(cat,
           d3.scaleSequential(activeInterp).domain([vMin, vMax]).clamp(true)
         );
       }
     });
 
-    // Month labels: at column containing the 1st of each month
-    const monthsDrawn = new Set();
+    // Update header baseline width for current W
+    headerBaseline.attr('x2', W);
 
-    // First month label at column 0
+    // Month labels in headerSVG (y values are negative, above cell boundary)
+    var monthsDrawn = new Set();
+
     if (displayDates.length) {
-      const firstMonth = displayDates[0].getMonth();
-      monthGroup.append("text")
-        .attr("x", colX(0)).attr("y", -10)
-        .attr("text-anchor", "start")
-        .style("font-size", "11px").style("fill", "#555").style("font-weight", "600")
+      var firstMonth = displayDates[0].getMonth();
+      monthGroup.append('text')
+        .attr('x', colX(0)).attr('y', -LAYOUT.HEADER_H + 35)
+        .attr('text-anchor', 'start')
+        .style('font-size', '9px').style('fill', '#555').style('font-weight', '600')
         .text(fmtMonth(displayDates[0]));
       monthsDrawn.add(firstMonth);
     }
 
-    monthStartCols.forEach(colIdx => {
-      let monthDate = null;
-      for (let offset = 0; offset < 7; offset++) {
-        const day = new Date(displayDates[colIdx].getTime() + offset * 86400000);
+    monthStartCols.forEach(function (colIdx) {
+      if (!displayDates[colIdx]) return;  // null guard
+      var monthDate = null;
+      for (var offset = 0; offset < 7; offset++) {
+        var day = new Date(displayDates[colIdx].getTime() + offset * 86400000);
         if (day.getDate() === 1) { monthDate = day; break; }
       }
       if (!monthDate) return;
-      const mo = monthDate.getMonth();
+      var mo = monthDate.getMonth();
       if (monthsDrawn.has(mo)) return;
       monthsDrawn.add(mo);
 
-      const x1 = colX(colIdx);
-      monthGroup.append("text")
-        .attr("x", x1).attr("y", -10)
-        .attr("text-anchor", "start")
-        .style("font-size", "11px").style("fill", "#555").style("font-weight", "600")
+      var x1 = colX(colIdx);
+      monthGroup.append('text')
+        .attr('x', x1).attr('y', -LAYOUT.HEADER_H + 35)
+        .attr('text-anchor', 'start')
+        .style('font-size', '9px').style('fill', '#555').style('font-weight', '600')
         .text(fmtMonth(monthDate));
 
-      dividerGroup.append("line")
-        .attr("x1", x1).attr("x2", x1)
-        .attr("y1", -10).attr("y2", chart_H)
-        .attr("stroke", "#e0e0e0").attr("stroke-width", 0.5);
+      // Month divider in body only (vertical line from y=0 to y=chart_H)
+      dividerGroup.append('line')
+        .attr('x1', x1).attr('x2', x1)
+        .attr('y1', 0).attr('y2', chart_H)
+        .attr('stroke', '#e0e0e0').attr('stroke-width', 0.5);
     });
 
-    // Top baseline
-    dividerGroup.append("line")
-      .attr("x1", 0).attr("x2", W)
-      .attr("y1", -1).attr("y2", -1)
-      .attr("stroke", "#e0e0e0").attr("stroke-width", 0.5);
+    // Event markers in headerSVG - sticky, always visible above cells
+    // Tick y values are negative (above cell boundary at y=0 in hg coords)
+    var activeEvents = EVENTS_BY_GROUP[activeEventGroup] || [];
+    activeEvents.forEach(function (evt) {
+      var evtDate = parseDate(evt.date);
+      if (!evtDate || evtDate < dFrom || evtDate > dTo) return;
 
-    // Row group dividers
-    sortedCats.forEach((_, i) => {
-      if (groupGapPx > 0 && (i + 1) % ROW_GROUP_SIZE === 0 && i < N_CATS - 1) {
-        const divY = rowYStarts[i] + ROW_H + GAP + groupGapPx / 2;
-        dividerGroup.append("line")
-          .attr("x1", -4).attr("x2", W)
-          .attr("y1", divY).attr("y2", divY)
-          .attr("stroke", "#eaeaea").attr("stroke-width", 0.5)
-          .attr("stroke-dasharray", "2,2");
+      var weekStartDate = getJanAnchoredWeekStart(evtDate);
+      var weekStartStr  = fmtInput(weekStartDate);
+      var idx = displayDates.findIndex(function (d) {
+        return d && fmtInput(d) === weekStartStr;  // null guard on d
+      });
+      if (idx < 0) return;
+
+      var dayOffset = Math.floor((evtDate - weekStartDate) / 86400000);
+      var ex        = colX(idx) + (dayOffset + 0.5) / 7 * effectiveCellW;
+
+      var markerG = eventGroup.append('g')
+        .attr('class', 'event-marker')
+        .style('cursor', 'pointer');
+
+      // Short solid tick above cell boundary.
+      // y1 controls how far the line extends above the dot at y2.
+      // Increase y1 (e.g. -14 or -10) for a shorter line.
+      // Decrease y1 (e.g. -26 or -30) for a longer line.
+      markerG.append('line')
+        .attr('x1', ex).attr('x2', ex)
+        .attr('y1', -10)
+        .attr('y2', 0)
+        .attr('stroke', '#aaa').attr('stroke-width', 2);
+
+      // Dot at the cell boundary
+      markerG.append('circle')
+        .attr('cx', ex).attr('cy', -6)
+        .attr('r', 3).attr('fill', '#aaa');
+
+      // Label text removed: dot and line only. Event name shown in tooltip.
+      markerG
+        .on('mouseover', function (event) {
+          tooltip.style('display', 'none');
+          evtTooltip.style('display', null).html(
+            '<div style="font-weight:600;color:#888;margin-bottom:2px">' +
+            evt.label + '</div>' +
+            '<div style="color:#555">' + fmtDate(evtDate) + '</div>'
+          );
+          var cRect   = container.node().getBoundingClientRect();
+          var tipW    = 190;
+          var cursorX = event.clientX - cRect.left;
+          // Flip right if there is room, otherwise flip left.
+          // Prevents clipping at the left edge (near sidebar) and
+          // at the right edge of the chart container.
+          var openRight = cursorX + tipW + 15 < cRect.width;
+          evtTooltip
+            .style('left', (openRight
+              ? cursorX + 10
+              : cursorX - tipW - 10) + 'px')
+            .style('top', (event.clientY - cRect.top - 40) + 'px');
+        })
+        .on('mouseleave', function () { evtTooltip.style('display', 'none'); });
+    });
+
+    footnoteEl.text(EVENT_FOOTNOTES[activeEventGroup] || '');
+
+    // Row group horizontal dividers in body
+    sortedCats.forEach(function (_, i) {
+      if (groupGapPx > 0 && (i + 1) % LAYOUT.ROW_GROUP_SIZE === 0 && i < N_CATS - 1) {
+        var divY = rowYStarts[i] + ROW_H + LAYOUT.GAP + groupGapPx / 2;
+        dividerGroup.append('line')
+          .attr('x1', -4).attr('x2', W)
+          .attr('y1', divY).attr('y2', divY)
+          .attr('stroke', '#eaeaea').attr('stroke-width', 0.5)
+          .attr('stroke-dasharray', '2,2');
       }
     });
 
     // Category labels
-    const labelFontSize = Math.min(11, Math.max(9, ROW_H * 0.38)) + "px";
-    sortedCats.forEach((cat, i) => {
-      const cy = rowYStarts[i] + ROW_H / 2;
-      labelGroup.append("text")
-        .attr("x", -6).attr("y", cy)
-        .attr("text-anchor", "end")
-        .attr("dominant-baseline", "central")
-        .style("font-size", labelFontSize).style("fill", "#444")
-        // .text(cat.length > 26 ? cat.slice(0, 25) + "\u2026" : cat);
-        .text((cat ?? "").length > 20 ? cat.slice(0, 25) + "\u2026" : (cat ?? ""));
-    });
-
-    // Rank axis header with hover hint
-    rankGroup.append("text")
-      .attr("x", W + 24).attr("y", -6)
-      .attr("text-anchor", "middle")
-      .style("font-size", "11px").style("fill", "#999").style("font-weight", "600")
-      .style("cursor", "default")
-      .text("Rank")
-      .on("mouseover", function(event) {
-        evtTooltip.style("display", null).html(
-          `<div style="font-size:11px;color:#555;line-height:1.5">
-             Rank 1 = highest impact<br>
-             Rank 65 = lowest impact
-           </div>`
-        );
-        const cRect  = container.node().getBoundingClientRect();
-        // Flip left: rank strip is on the far right so tooltip opens leftward
-        evtTooltip
-          .style("left", (event.clientX - cRect.left - 185) + "px")
-          .style("top",  (event.clientY - cRect.top  - 30)  + "px");
-      })
-      .on("mouseleave", () => evtTooltip.style("display", "none"));
-
-    // Rank numbers with hover tooltip
-    sortedCats.forEach((_, i) => {
-      const rank = i + 1;
-      const show = N_CATS <= 30
-        ? true
-        : (rank === 1 || rank === N_CATS || rank % 5 === 0);
-      if (!show) return;
-      const cy = rowYStarts[i] + ROW_H / 2;
-      rankGroup.append("text")
-        .attr("x", W + 24).attr("y", cy)
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "central")
-        .style("font-size", "11px").style("fill", "#bbb")
-        .style("cursor", "default")
-        .text(rank)
-        .on("mouseover", function(event) {
-          evtTooltip.style("display", null).html(
-            `<div style="font-size:11px;color:#555;line-height:1.5">
-               Rank 1 = highest impact<br>
-               Rank 65 = lowest impact
-             </div>`
-          );
-          const cRect = container.node().getBoundingClientRect();
-          evtTooltip
-            .style("left", (event.clientX - cRect.left - 150) + "px")
-            .style("top",  (event.clientY - cRect.top  - 50) + "px");
-        })
-        .on("mouseleave", () => evtTooltip.style("display", "none"));
-    });
-
-    // Cells: one g.row-group per category
-    const rowGroupEls = [];
-    sortedCats.forEach((cat, rowIdx) => {
-      const rowG  = cellGroup.append("g").attr("class", "row-group");
-      rowGroupEls.push(rowG);
-      const rowY  = rowYStarts[rowIdx];
-      const scale = rowScales.get(cat);
-      const colMap = displayValues.get(cat);
-
-      displayDates.forEach((date, colIdx) => {
-        const key  = fmtInput(date);
-        const cell = colMap?.get(key);
-        const val  = cell?.value ?? null;
-        const fill = (val != null && !isNaN(val)) ? scale(val) : MISSING_FILL;
-        rowG.append("rect")
-          .attr("x",      colX(colIdx))
-          .attr("y",      rowY)
-          .attr("width",  Math.max(effectiveCellW - 0.2, 0.5))
-          .attr("height", ROW_H)
-          .attr("fill",   fill);
-      });
-    });
-
-    // Event markers: horizontal label below grid, tick + dot + dashed line
-    const activeEvents = EVENTS_BY_GROUP[activeEventGroup] || [];
-    activeEvents.forEach(evt => {
-      const evtDate = parseDate(evt.date);
-      if (!evtDate || evtDate < dFrom || evtDate > dTo) return;
-
-      const weekStartDate = getJanAnchoredWeekStart(evtDate);
-      const weekStartStr  = fmtInput(weekStartDate);
-      const idx = displayDates.findIndex(d => fmtInput(d) === weekStartStr);
-      if (idx < 0) return;
-
-      const dayOffset = Math.floor((evtDate - weekStartDate) / 86400000);
-      const ex = colX(idx) + (dayOffset + 0.5) / 7 * effectiveCellW;
-
-      const markerG = eventGroup.append("g")
-        .attr("class", "event-marker")
-        .style("cursor", "pointer");
-
-      // Dashed vertical line through chart body
-      markerG.append("line")
-        .attr("x1", ex).attr("x2", ex)
-        .attr("y1", 0).attr("y2", chart_H + 4)
-        .attr("stroke", "#ccc").attr("stroke-width", 1)
-        .attr("stroke-dasharray", "4,3");
-
-      markerG.append("line")
-        .attr("x1", ex).attr("x2", ex)
-        .attr("y1", chart_H + 6).attr("y2", chart_H + 14)
-        .attr("stroke", "#999").attr("stroke-width", 1.5);
-
-      // Dot and short tick below grid
-      markerG.append("circle")
-        .attr("cx", ex).attr("cy", chart_H + 4 + 13)
-        .attr("r", 4).attr("fill", "#999");
-
-      // // Horizontal label below tick
-      // markerG.append("text")
-      //   .attr("x", ex).attr("y", chart_H + 22)
-      //   .attr("text-anchor", "middle")
-      //   .style("font-size", "8px").style("fill", "#aaa")
-      //   .text(evt.label);
-
-      markerG
-        .on("mouseover", function(event) {
-          tooltip.style("display", "none");
-          evtTooltip.style("display", null).html(
-            `<div style="font-weight:600;color:#888;margin-bottom:2px">
-               ${evt.label}</div>
-             <div style="color:#555">${fmtDate(evtDate)}</div>`
-          );
-          const cRect = container.node().getBoundingClientRect();
-          evtTooltip
-            .style("left", (event.clientX - cRect.left + 10) + "px")
-            .style("top",  (event.clientY - cRect.top  - 50) + "px");
-        })
-        .on("mouseleave", () => evtTooltip.style("display", "none"));
+    var labelFontSize = Math.min(11, Math.max(7, ROW_H * 0.38)) + 'px';
+    sortedCats.forEach(function (cat, i) {
+      var cy = rowYStarts[i] + ROW_H / 2;
+      labelGroup.append('text')
+        .attr('x', -6).attr('y', cy)
+        .attr('text-anchor', 'end').attr('dominant-baseline', 'central')
+        .style('font-size', labelFontSize).style('fill', '#444')
+        .text(cat.length > 26 ? cat.slice(0, 25) + '\u2026' : cat);
     });
 
     // Y-axis label
-    axisLegGroup.append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("x", -chart_H / 2)
-      .attr("y", -MARGIN.left + 10)
-      .attr("text-anchor", "middle")
-      .style("font-size", "11px").style("fill", "#666")
-      .text("LCFS Categories (ranked by impact)");
+    axisLegGroup.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('x', -chart_H / 2).attr('y', -MARGIN.left + 10)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '11px').style('fill', '#666')
+      .text('LCFS Categories (ranked by impact)');
 
-    // Legend bar
-    const legG = axisLegGroup.append("g")
-      .attr("transform", `translate(${W - 150},${chart_H + 34})`);
+    // Rank axis header with hover hint
+    rankGroup.append('text')
+      .attr('x', W + 24).attr('y', -8)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '9px').style('fill', '#999').style('font-weight', '600')
+      .style('cursor', 'default').text('Rank')
+      .on('mouseover', function (event) {
+        evtTooltip.style('display', null).html(
+          '<div style="font-size:11px;color:#555;line-height:1.5">' +
+          'Rank 1 = highest impact<br>Rank ' + allCats.length + ' = lowest impact</div>'
+        );
+        var cRect = container.node().getBoundingClientRect();
+        evtTooltip
+          .style('left', (event.clientX - cRect.left - 185) + 'px')
+          .style('top',  (event.clientY - cRect.top  - 30)  + 'px');
+      })
+      .on('mouseleave', function () { evtTooltip.style('display', 'none'); });
 
-    legG.append("text")
-      .attr("x", 0).attr("y", 5)
-      .style("font-size", "10px").style("fill", "#999")
-      .text(activePkg ? "Deviation from annual mean:" : "Per-row scale:");
+    // Rank numbers with hover tooltip
+    sortedCats.forEach(function (_, i) {
+      var rank = i + 1;
+      var show = N_CATS <= 30
+        ? true
+        : (rank === 1 || rank === N_CATS || rank % 5 === 0);
+      if (!show) return;
+      var cy = rowYStarts[i] + ROW_H / 2;
+      rankGroup.append('text')
+        .attr('x', W + 24).attr('y', cy)
+        .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+        .style('font-size', '8px').style('fill', '#bbb').style('cursor', 'default')
+        .text(rank)
+        .on('mouseover', function (event) {
+          evtTooltip.style('display', null).html(
+            '<div style="font-size:11px;color:#555;line-height:1.5">' +
+            'Rank 1 = highest impact<br>Rank ' + allCats.length + ' = lowest impact</div>'
+          );
+          var cRect = container.node().getBoundingClientRect();
+          evtTooltip
+            .style('left', (event.clientX - cRect.left - 185) + 'px')
+            .style('top',  (event.clientY - cRect.top  - 30)  + 'px');
+        })
+        .on('mouseleave', function () { evtTooltip.style('display', 'none'); });
+    });
 
-    legG.append("rect")
-      .attr("y", 10).attr("width", 140).attr("height", 10).attr("rx", 2)
-      .style("fill", "url(#hm-v2-legend-grad)");
+    // Cells: one g.row-group per category
+    var rowGroupEls = [];
+    sortedCats.forEach(function (cat, rowIdx) {
+      var rowG   = cellGroup.append('g').attr('class', 'row-group');
+      rowGroupEls.push(rowG);
+      var rowY   = rowYStarts[rowIdx];
+      var scale  = rowScales.get(cat);
+      var colMap = displayValues.get(cat);
 
-    if (activePkg) {
-      legG.append("text").attr("x", 0)  .attr("y", 30)
-        .style("font-size", "9px").style("fill", "#bbb").text("Below mean");
-      legG.append("text").attr("x", 70) .attr("y", 30)
-        .attr("text-anchor", "middle")
-        .style("font-size", "9px").style("fill", "#bbb").text("Annual mean");
-      legG.append("text").attr("x", 140).attr("y", 30)
-        .attr("text-anchor", "end")
-        .style("font-size", "9px").style("fill", "#bbb").text("Above mean");
-    } else {
-      legG.append("text").attr("x", 0)  .attr("y", 30)
-        .style("font-size", "9px").style("fill", "#bbb").text("Low");
-      legG.append("text").attr("x", 140).attr("y", 30)
-        .attr("text-anchor", "end")
-        .style("font-size", "9px").style("fill", "#bbb").text("High");
-    }
+      displayDates.forEach(function (date, colIdx) {
+        var key  = fmtInput(date);
+        var cell = colMap && colMap.get(key);
+        var val  = cell ? cell.value : null;
+        var fill = (val != null && !isNaN(val))
+          ? scale(val) : LAYOUT.MISSING_FILL;
+        rowG.append('rect')
+          .attr('x',      colX(colIdx))
+          .attr('y',      rowY)
+          .attr('width',  Math.max(effectiveCellW - 0.2, 0.5))
+          .attr('height', ROW_H)
+          .attr('fill',   fill);
+      });
+    });
 
     // Cell hover tooltip
-    overlay
-      .on("mousemove", function(event) {
-        const [mx, my] = d3.pointer(event, this);
+    overlay.on('mousemove', function (event) {
+      var pointer = d3.pointer(event, this);
+      var mx = pointer[0], my = pointer[1];
 
-        let colIdx = -1, minDist = Infinity;
-        displayDates.forEach((d, i) => {
-          const cx   = colX(i) + effectiveCellW / 2;
-          const dist = Math.abs(mx - cx);
-          if (dist < minDist) { minDist = dist; colIdx = i; }
-        });
-
-        const rowIdx = findRowIdx(my, rowYStarts, ROW_H);
-
-        if (colIdx < 0 || rowIdx < 0 || minDist > effectiveCellW + MONTH_GAP) {
-          tooltip.style("display", "none");
-          rowGroupEls.forEach(rg => rg.attr("opacity", 1));
-          return;
-        }
-
-        rowGroupEls.forEach(rg => rg.attr("opacity", DIM_OPACITY));
-        rowGroupEls[rowIdx].attr("opacity", 1);
-
-        const date = displayDates[colIdx];
-        const cat  = sortedCats[rowIdx];
-        const key  = fmtInput(date);
-        const cell = displayValues.get(cat)?.get(key);
-
-        if (!cell) { tooltip.style("display", "none"); return; }
-
-        const pctColour  = cell.pct >= 0 ? "#d62728" : "#2ca02c";
-        const rankLabel  = (cell.rank != null) ? `${cell.rank} of 65` : "\u2014";
-
-        // Annual share only shown for Total SF -- omitted from per-kg tooltip
-        const annualBlock = !activePkg && cell.share != null
-          ? `<div style="font-size:11px;font-weight:600;color:#888;
-                         margin-top:6px;border-top:1px solid #eee;padding-top:4px">
-               Annual data:
-             </div>
-             <div><b>Annual contribution to total SF:</b>
-               ${d3.format(".2f")(cell.share)}%
-             </div>`
-          : "";
-
-        tooltip.style("display", null).html(
-          `<div style="font-weight:600;color:${activeInterp(0.7)};margin-bottom:3px">
-             ${cfg.short} ${activePkg ? "per kg" : "Sales Footprint"}
-           </div>
-           <div><b>Week of:</b> ${fmtDate(date)}</div>
-           <div><b>Category:</b> ${cat}</div>
-           <div style="font-size:11px;font-weight:600;color:#888;
-                       margin-top:6px;border-top:1px solid #eee;padding-top:4px">
-             Week's data:
-           </div>
-           <div><b>Week's rank:</b> ${rankLabel}</div>
-           <div><b>Deviation from annual mean:</b>
-             <span style="color:${pctColour}">${pctFormatter(cell.pct)}</span>
-           </div>
-           ${annualBlock}`
-        );
-        //            <div><b>Weekly mean:</b> ${valFormatter(cell.value)} ${activeUnit}</div>
-
-        const cRect  = container.node().getBoundingClientRect();
-        const tipW   = 280;
-        const tipH   = 180;
-        const left   = event.clientX - cRect.left + 14;
-        const top    = event.clientY - cRect.top;
-        const flipUp = top + tipH + 10 > cRect.height;
-        tooltip
-          .style("left", (left + tipW > cRect.width ? left - tipW - 24 : left) + "px")
-          .style("top",  (flipUp ? top - tipH - 10 : top + 10) + "px");
-      })
-      .on("mouseleave", function() {
-        tooltip.style("display",    "none");
-        evtTooltip.style("display", "none");
-        rowGroupEls.forEach(rg => rg.attr("opacity", 1));
+      var colIdx = -1, minDist = Infinity;
+      displayDates.forEach(function (d, i) {
+        var cx   = colX(i) + effectiveCellW / 2;
+        var dist = Math.abs(mx - cx);
+        if (dist < minDist) { minDist = dist; colIdx = i; }
       });
 
-    // // Dynamic labels and footnote
-    // titleDiv
-    //   .style("color", activeInterp(0.7))
-    //   .text(`${cfg.short} ${activePkg ? "Per kg" : "Sales Footprint"} -- Weekly Average`);
+      var rowIdx = findRowIdx(my, rowYStarts, ROW_H);
 
-    // subtitleDiv.text(
-    //   `Top ${N_CATS} of ${allCats.length} categories  --  ` +
-    //   `${N_COLS} weeks  --  ` +
-    //   `${activePkg ? "per-kg deviation from annual mean" : "total SF"} ` +
-    //   `-- colour scaled per row`
-    // );
+      if (colIdx < 0 || rowIdx < 0 || minDist > effectiveCellW + LAYOUT.MONTH_GAP) {
+        tooltip.style('display', 'none');
+        rowGroupEls.forEach(function (rg) { rg.attr('opacity', 1); });
+        return;
+      }
 
-    footnoteEl.text(EVENT_FOOTNOTES[activeEventGroup] || "");
+      rowGroupEls.forEach(function (rg) { rg.attr('opacity', LAYOUT.DIM_OPACITY); });
+      rowGroupEls[rowIdx].attr('opacity', 1);
 
-    // Update swatch colour and annual mean reference values
-    hmLegendSwatch.select(".hm-legend-line").attr("stroke", activeInterp(0.7));
+      var date = displayDates[colIdx];
+      var cat  = sortedCats[rowIdx];
+      var key  = fmtInput(date);
+      var cell = displayValues.get(cat) && displayValues.get(cat).get(key);
+
+      if (!cell) { tooltip.style('display', 'none'); return; }
+
+      var pctColour  = cell.pct >= 0 ? '#d62728' : '#2ca02c';
+      var rankLabel  = (cell.rank != null) ? cell.rank + ' of ' + allCats.length : '\u2014';
+
+      // Annual share section only shown for Total SF view
+      var annualBlock = (!activePkg && cell.share != null)
+        ? '<div style="font-size:11px;font-weight:600;color:#888;' +
+          'margin-top:5px;border-top:1px solid #eee;padding-top:4px">' +
+          'Annual data:</div>' +
+          '<div><b>Annual contribution to total SF:</b> ' +
+          d3.format('.2f')(cell.share) + '%</div>'
+        : '';
+
+      var tipH = 180, tipW = 280;
+      var cRect = container.node().getBoundingClientRect();
+      var left  = event.clientX - cRect.left + 14;
+      var top   = event.clientY - cRect.top;
+      var flipUp = top + tipH + 10 > cRect.height;
+
+      tooltip.style('display', null).html(
+        '<div style="font-weight:600;color:' + activeInterp(0.7) +
+        ';margin-bottom:3px">' +
+        cfg.short + ' ' + (activePkg ? 'per kg' : 'Sales Footprint') + '</div>' +
+        '<div><b>Week of:</b> ' + fmtDate(date) + '</div>' +
+        '<div><b>Category:</b> ' + cat + '</div>' +
+        '<div><b>Weekly mean:</b> ' + valFormatter(cell.value) + ' ' + activeUnit + '</div>' +
+        '<div style="font-size:11px;font-weight:600;color:#888;' +
+        'margin-top:5px;border-top:1px solid #eee;padding-top:4px">' +
+        "Week's data:</div>" +
+        "<div><b>Week's rank:</b> " + rankLabel + '</div>' +
+        '<div><b>Deviation from annual mean:</b> ' +
+        '<span style="color:' + pctColour + '">' + pctFormatter(cell.pct) + '</span></div>' +
+        annualBlock
+      )
+        .style('left',
+          ((left + tipW > cRect.width ? left - tipW - 24 : left)) + 'px')
+        .style('top', (flipUp ? top - tipH - 10 : top + 10) + 'px');
+    })
+    .on('mouseleave', function () {
+      tooltip.style('display', 'none');
+      evtTooltip.style('display', 'none');
+      rowGroupEls.forEach(function (rg) { rg.attr('opacity', 1); });
+    });
+
+    // Legend swatch and bold annual mean values
+    hmLegendSwatch.select('.hm-legend-line').attr('stroke', activeInterp(0.7));
     hmLegendLabel
-      .style("color", activeInterp(0.7))
-      .text(`${cfg.short} -- ${activePkg ? "Per kg" : "Total SF"}`);
-    hmLegendMeanSF.text(
-      `Annual mean SF: ${hmStatFmt(grandAnnualSF[activeMetric])} ${cfg.unit}`
+      .style('color', activeInterp(0.7))
+      .text(cfg.short + ' - ' + (activePkg ? 'Per kg' : 'Total SF'));
+
+    hmLegendMeanSF.html(
+      'Annual mean SF: <b style="font-weight:600">' +
+      statFmt(grandAnnualSF[activeMetric]) + ' ' + cfg.unit + '</b>'
     );
-    hmLegendMeanPkg.text(
-      `Annual mean per kg: ${hmStatFmt(grandAnnualPkg[activeMetric])} ${cfg.pkg_unit}`
+    hmLegendMeanPkg.html(
+      'Annual mean per kg: <b style="font-weight:600">' +
+      statFmt(grandAnnualPkg[activeMetric]) + ' ' + cfg.pkg_unit + '</b>'
     );
 
     syncResetButton();
   }
+
+
+  /* 1h. RESIZE
+     ResizeObserver on the .chart-section ancestor.
+     Fires after 120ms debounce on any width change larger than
+     4px. Updates totalWidth, W, both SVG widths, overlay width,
+     and header baseline width. Also handles legend repositioning
+     below controls on narrow charts (same 520px threshold as
+     the trend chart, applied to both legend block and topRow
+     padding). Deferred with setTimeout so the node is in the
+     DOM before closest() is called.
+
+     To change:
+     - Narrow threshold: adjust 520 (same number in trend chart).
+     - Debounce delay: adjust 120 (milliseconds).
+     - Minimum width: adjust the 320 floor in Math.max(). */
+
+  function computeNarrow(w) { return w < 520; }
+
+  function applyLegendLayout(narrow) {
+    hmLegendBlock
+      .style('position',    narrow ? 'relative' : 'absolute')
+      .style('top',         narrow ? 'auto' : '0')
+      .style('right',       narrow ? 'auto' : '0')
+      .style('margin-top',  narrow ? '8px'  : '0')
+      .style('align-items', narrow ? 'flex-start' : 'flex-end');
+    topRow.style('padding-right', narrow ? '0' : '240px');
+  }
+
+  var resizeTimer = null;
+
+  var resizeObserver = new ResizeObserver(function (entries) {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (!entries.length) return;
+      var entry = entries[entries.length - 1];
+
+      // containerW is the actual viewport width of the chart-section.
+      // newTotal is the chart render width - floored at MIN_CHART_WIDTH.
+      // When containerW < MIN_CHART_WIDTH the chart stays at MIN_CHART_WIDTH
+      // and hmChartScroll provides horizontal scrolling.
+      var containerW = Math.floor(entry.contentRect.width) - 48;
+      var newTotal   = Math.max(containerW, MIN_CHART_WIDTH);
+
+      // Legend narrow/wide check uses containerW (actual viewport width)
+      // not newTotal, so the legend drops below controls when the screen
+      // is narrow even if the chart itself is still rendering at 600px.
+      applyLegendLayout(computeNarrow(containerW));
+
+      if (Math.abs(newTotal - totalWidth) <= 4) return;
+
+      totalWidth = newTotal;
+      W          = totalWidth - MARGIN.left - MARGIN.right;
+
+      headerSVG.attr('width', totalWidth);
+      bodySVG.attr('width', totalWidth);
+      overlay.attr('width', W);
+      headerBaseline.attr('x2', W);
+
+      redraw();
+    }, 120);
+  });
+
+  // Scroll sync: when the body scrolls horizontally, shift the hg group
+  // to match so month labels and event markers stay aligned with columns.
+  // The header SVG clips content that would extend past the container edge.
+  hmChartScroll.node().addEventListener('scroll', function () {
+    hg.attr('transform',
+      'translate(' + (MARGIN.left - this.scrollLeft) + ',' + LAYOUT.HEADER_H + ')');
+  });
+  
+  setTimeout(function () {
+    var node = container.node();
+    if (!node.parentElement) return;
+
+    var target = node.closest('.chart-section') || node.parentElement;
+    resizeObserver.observe(target);
+
+    var containerW = Math.floor(target.getBoundingClientRect().width) - 48;
+    var initW      = Math.max(containerW, MIN_CHART_WIDTH);
+
+    // Legend layout uses actual container width, not chart render width
+    applyLegendLayout(computeNarrow(containerW));
+
+    if (Math.abs(initW - totalWidth) > 4) {
+      totalWidth = initW;
+      W          = totalWidth - MARGIN.left - MARGIN.right;
+      headerSVG.attr('width', totalWidth);
+      bodySVG.attr('width', totalWidth);
+      overlay.attr('width', W);
+      headerBaseline.attr('x2', W);
+      redraw();
+    }
+  }, 0);
 
 
   redraw();
